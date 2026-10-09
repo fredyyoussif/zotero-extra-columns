@@ -6,17 +6,12 @@ Each value is saved as a `Key: value` line in the item's **Extra** field. Extra 
 
 ## Installing
 
-1. Build the plugin by running this in PowerShell from this folder:
-
-   ```powershell
-   .\build.ps1
-   ```
-
-   This creates `extra-columns.xpi`.
+1. Download [`extra-columns.xpi`](https://github.com/fredyyoussif/zotero-extra-columns/releases/latest/download/extra-columns.xpi) from the [latest release](https://github.com/fredyyoussif/zotero-extra-columns/releases/latest).
+   In Firefox, right-click the link and choose **Save Link As...**, or Firefox will try to install the file as a browser add-on.
 2. In Zotero, open **Tools > Plugins**, click the gear menu, and choose **Install Plugin From File...**.
 3. Select `extra-columns.xpi`.
 
-The plugin needs Zotero 10.
+The plugin needs Zotero 10. To update, install the newer XPI the same way. Your columns and values are kept.
 
 ## Adding columns
 
@@ -95,6 +90,19 @@ Detection also finds lines written by other tools, such as `citationCount: 00000
 | `content/main.js` | Registers everything and re-registers when columns change |
 | `content/preferences.*` | The Settings pane |
 | `locale/en-US/extra-columns.ftl` | Interface text |
+
+### Building
+
+Run `.\build.ps1` in PowerShell to create `extra-columns.xpi` in this folder.
+
+GitHub Actions builds the XPI on every push and keeps it as a workflow artifact. To publish a release, set `version` in `manifest.json`, commit, and push a matching tag:
+
+```
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+The workflow then creates a release with `extra-columns.xpi` attached.
 
 ### Running the tests
 
