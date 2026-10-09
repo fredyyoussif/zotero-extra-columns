@@ -7,8 +7,7 @@ on:
 
 jobs:
   build:
-    # build.ps1 targets Windows PowerShell, so build on Windows.
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write # needed to create releases
     steps:
@@ -19,27 +18,23 @@ jobs:
       # Other builds are marked 0.0.0 so they can't be mistaken for a release.
       - name: Work out version
         id: version
-        shell: powershell
         env:
           REF: ${{ github.ref }}
           REF_NAME: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          if ($env:REF -like 'refs/tags/v*') {
-            $version = $env:REF_NAME.Substring(1)
-            $label = $version
-          }
-          else {
-            $version = "0.0.0"
-            $label = "dev-" + $env:SHA.Substring(0, 7)
-          }
-          # Add-Content writes no byte-order mark, which would break the output names.
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "label=$label"
+          if [[ $REF == refs/tags/v* ]]; then
+            version="${REF_NAME#v}"
+            label="$version"
+          else
+            version="0.0.0"
+            label="dev-${SHA:0:7}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "label=$label" >> "$GITHUB_OUTPUT"
 
       - name: Build
-        shell: powershell
-        run: ./build.ps1 -Version "${{ steps.version.outputs.version }}"
+        run: bash build.sh "${{ steps.version.outputs.version }}"
 
       - name: Upload build
         uses: actions/upload-artifact@v4

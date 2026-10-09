@@ -95,11 +95,11 @@ Detection also finds lines written by other tools, such as `citationCount: 00000
 
 The version number isn't stored anywhere in the repository. `manifest.json` and `updates.json` are templates with a `{{VERSION}}` placeholder, and the build fills it in. To build locally, pass a version:
 
-```powershell
-.\build.ps1 -Version 0.1.2
+```bash
+bash build.sh 0.1.2
 ```
 
-This creates `extra-columns.xpi` and `updates.json` in the `build` folder.
+This creates `extra-columns.xpi` and `updates.json` in the `build` folder. It needs `zip` and `sha256sum`, which Linux has. Git Bash on Windows doesn't include `zip`, so use WSL there or let GitHub Actions build.
 
 GitHub Actions builds on every push and keeps the result as a workflow artifact. Builds that aren't from a tag get version `0.0.0`.
 
