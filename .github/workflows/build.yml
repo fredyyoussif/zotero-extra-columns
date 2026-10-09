@@ -34,10 +34,41 @@ jobs:
           path: extra-columns.xpi
           if-no-files-found: error
 
-      # Pushing a tag like v0.1.1 publishes a release with the XPI attached.
+      # Zotero reads updates.json from the latest release (the manifest's update_url)
+      # to find new versions. Each entry links to the XPI of its own tagged release.
+      - name: Write updates.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $manifest = Get-Content -Raw manifest.json | ConvertFrom-Json
+          $zotero = $manifest.applications.zotero
+          if ($env:TAG -ne "v$($manifest.version)") {
+            throw "Tag $env:TAG doesn't match manifest version $($manifest.version). Tag releases as v<version>."
+          }
+
+          $hash = (Get-FileHash -Algorithm SHA256 extra-columns.xpi).Hash.ToLower()
+          $update = [ordered]@{
+            version      = $manifest.version
+            update_link  = "https://github.com/$env:REPO/releases/download/$env:TAG/extra-columns.xpi"
+            update_hash  = "sha256:$hash"
+            applications = @{ zotero = [ordered]@{ strict_min_version = $zotero.strict_min_version } }
+          }
+          $updates = @{ addons = @{ $zotero.id = @{ updates = @($update) } } }
+
+          # Write UTF-8 without a byte-order mark.
+          $json = ConvertTo-Json $updates -Depth 10
+          [System.IO.File]::WriteAllText("$PWD\updates.json", $json, (New-Object System.Text.UTF8Encoding $false))
+          Get-Content updates.json
+
+      # Pushing a tag like v0.1.1 publishes a release with the XPI and updates.json attached.
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: extra-columns.xpi
+          files: |
+            extra-columns.xpi
+            updates.json
           generate_release_notes: true

@@ -9,8 +9,8 @@
   },
   "applications": {
     "zotero": {
-      "id": "extra-columns@local.plugin",
-      "update_url": "https://example.invalid/extra-columns/updates.json",
+      "id": "zotero-extra-columns@fredyyoussif.github.io",
+      "update_url": "https://github.com/fredyyoussif/Zoter-extra-columns/releases/latest/download/updates.json",
       "strict_min_version": "10.0",
       "strict_max_version": "10.*"
     }

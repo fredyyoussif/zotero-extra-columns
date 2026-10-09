@@ -102,7 +102,9 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
-The workflow then creates a release with `extra-columns.xpi` attached.
+The workflow then creates a release with `extra-columns.xpi` and `updates.json` attached. The tag must be `v` followed by the manifest version, or the release step fails.
+
+Zotero checks the `updates.json` on the latest release, through the manifest's `update_url`, and offers installed copies the new version. Keep the plugin ID in `manifest.json` unchanged from now on, because Zotero matches updates by ID.
 
 ### Running the tests
 
@@ -115,7 +117,3 @@ The first line of the result says how many checks passed. The tests only read da
 ### Troubleshooting
 
 Turn on **Help > Debug Output Logging** and look for lines starting with `Extra Columns`. Errors also appear in **Tools > Developer > Error Console**.
-
-### Before sharing the plugin
-
-The plugin ID `extra-columns@local.plugin` and the update URL in `manifest.json` are placeholders. Replace both before distributing the plugin. Changing the ID resets saved column widths and visibility.
