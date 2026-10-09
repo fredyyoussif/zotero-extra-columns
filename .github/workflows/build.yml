@@ -15,60 +15,48 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Read version
+      # The version comes only from the tag: v0.1.2 builds version 0.1.2.
+      # Other builds are marked 0.0.0 so they can't be mistaken for a release.
+      - name: Work out version
         id: version
         shell: powershell
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
-          $version = (Get-Content -Raw manifest.json | ConvertFrom-Json).version
-          # Add-Content writes no byte-order mark, which would break the output name.
+          if ($env:REF -like 'refs/tags/v*') {
+            $version = $env:REF_NAME.Substring(1)
+            $label = $version
+          }
+          else {
+            $version = "0.0.0"
+            $label = "dev-" + $env:SHA.Substring(0, 7)
+          }
+          # Add-Content writes no byte-order mark, which would break the output names.
           Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "label=$label"
 
       - name: Build
         shell: powershell
-        run: ./build.ps1
+        run: ./build.ps1 -Version "${{ steps.version.outputs.version }}"
 
-      - name: Upload XPI
+      - name: Upload build
         uses: actions/upload-artifact@v4
         with:
-          name: extra-columns-${{ steps.version.outputs.version }}
-          path: extra-columns.xpi
+          name: extra-columns-${{ steps.version.outputs.label }}
+          path: |
+            build/extra-columns.xpi
+            build/updates.json
           if-no-files-found: error
 
       # Zotero reads updates.json from the latest release (the manifest's update_url)
-      # to find new versions. Each entry links to the XPI of its own tagged release.
-      - name: Write updates.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: powershell
-        env:
-          TAG: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          $manifest = Get-Content -Raw manifest.json | ConvertFrom-Json
-          $zotero = $manifest.applications.zotero
-          if ($env:TAG -ne "v$($manifest.version)") {
-            throw "Tag $env:TAG doesn't match manifest version $($manifest.version). Tag releases as v<version>."
-          }
-
-          $hash = (Get-FileHash -Algorithm SHA256 extra-columns.xpi).Hash.ToLower()
-          $update = [ordered]@{
-            version      = $manifest.version
-            update_link  = "https://github.com/$env:REPO/releases/download/$env:TAG/extra-columns.xpi"
-            update_hash  = "sha256:$hash"
-            applications = @{ zotero = [ordered]@{ strict_min_version = $zotero.strict_min_version } }
-          }
-          $updates = @{ addons = @{ $zotero.id = @{ updates = @($update) } } }
-
-          # Write UTF-8 without a byte-order mark.
-          $json = ConvertTo-Json $updates -Depth 10
-          [System.IO.File]::WriteAllText("$PWD\updates.json", $json, (New-Object System.Text.UTF8Encoding $false))
-          Get-Content updates.json
-
-      # Pushing a tag like v0.1.1 publishes a release with the XPI and updates.json attached.
+      # to find new versions.
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            extra-columns.xpi
-            updates.json
+            build/extra-columns.xpi
+            build/updates.json
           generate_release_notes: true

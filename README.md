@@ -93,16 +93,24 @@ Detection also finds lines written by other tools, such as `citationCount: 00000
 
 ### Building
 
-Run `.\build.ps1` in PowerShell to create `extra-columns.xpi` in this folder.
+The version number isn't stored anywhere in the repository. `manifest.json` and `updates.json` are templates with a `{{VERSION}}` placeholder, and the build fills it in. To build locally, pass a version:
 
-GitHub Actions builds the XPI on every push and keeps it as a workflow artifact. To publish a release, set `version` in `manifest.json`, commit, and push a matching tag:
-
-```
-git tag v0.1.1
-git push origin v0.1.1
+```powershell
+.\build.ps1 -Version 0.1.2
 ```
 
-The workflow then creates a release with `extra-columns.xpi` and `updates.json` attached. The tag must be `v` followed by the manifest version, or the release step fails.
+This creates `extra-columns.xpi` and `updates.json` in the `build` folder.
+
+GitHub Actions builds on every push and keeps the result as a workflow artifact. Builds that aren't from a tag get version `0.0.0`.
+
+To publish a release, push a tag named `v` followed by the version:
+
+```
+git tag v0.1.2
+git push origin v0.1.2
+```
+
+The workflow builds with the version from the tag, then creates a release with `extra-columns.xpi` and `updates.json` attached. A tag that isn't `v` plus numbers separated by dots fails the build.
 
 Zotero checks the `updates.json` on the latest release, through the manifest's `update_url`, and offers installed copies the new version. Keep the plugin ID in `manifest.json` unchanged from now on, because Zotero matches updates by ID.
 

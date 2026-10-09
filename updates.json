@@ -1,0 +1,18 @@
+{
+  "addons": {
+    "{{ID}}": {
+      "updates": [
+        {
+          "version": "{{VERSION}}",
+          "update_link": "https://github.com/fredyyoussif/zotero-extra-columns/releases/download/v{{VERSION}}/extra-columns.xpi",
+          "update_hash": "sha256:{{XPI_SHA256}}",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "{{STRICT_MIN_VERSION}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
