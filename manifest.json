@@ -1,0 +1,18 @@
+{
+  "manifest_version": 2,
+  "name": "Extra Columns",
+  "version": "0.1.0",
+  "description": "Add your own editable columns to Zotero. Values are stored in the Extra field, so they sync with your library.",
+  "icons": {
+    "48": "content/icon.svg",
+    "96": "content/icon.svg"
+  },
+  "applications": {
+    "zotero": {
+      "id": "extra-columns@local.plugin",
+      "update_url": "https://example.invalid/extra-columns/updates.json",
+      "strict_min_version": "10.0",
+      "strict_max_version": "10.*"
+    }
+  }
+}

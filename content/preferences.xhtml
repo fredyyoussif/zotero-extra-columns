@@ -1,0 +1,54 @@
+<linkset>
+	<html:link rel="localization" href="extra-columns.ftl"/>
+</linkset>
+<vbox id="extra-columns-prefs">
+	<groupbox>
+		<label><html:h2 data-l10n-id="extra-columns-prefs-fields-title"/></label>
+		<html:p data-l10n-id="extra-columns-prefs-intro"/>
+		<html:table class="extra-columns-table">
+			<html:thead>
+				<html:tr>
+					<html:th data-l10n-id="extra-columns-prefs-col-label"/>
+					<html:th data-l10n-id="extra-columns-prefs-col-key"/>
+					<html:th class="extra-columns-narrow" data-l10n-id="extra-columns-prefs-col-number"/>
+					<html:th/>
+				</html:tr>
+			</html:thead>
+			<html:tbody id="extra-columns-rows"/>
+			<html:tfoot>
+				<html:tr>
+					<html:td><html:input id="extra-columns-new-label" type="text" data-l10n-id="extra-columns-prefs-new-label"/></html:td>
+					<html:td><html:input id="extra-columns-new-key" type="text" data-l10n-id="extra-columns-prefs-new-key"/></html:td>
+					<html:td class="extra-columns-narrow"><html:input id="extra-columns-new-number" type="checkbox" data-l10n-id="extra-columns-prefs-new-number"/></html:td>
+					<html:td><button id="extra-columns-add" data-l10n-id="extra-columns-prefs-add"/></html:td>
+				</html:tr>
+			</html:tfoot>
+		</html:table>
+		<html:p id="extra-columns-empty" data-l10n-id="extra-columns-prefs-empty"/>
+		<html:p id="extra-columns-error" class="extra-columns-error" role="alert" hidden="hidden"/>
+		<html:p class="extra-columns-note" data-l10n-id="extra-columns-prefs-data-note"/>
+	</groupbox>
+	<groupbox>
+		<label><html:h2 data-l10n-id="extra-columns-prefs-detect-title"/></label>
+		<html:p data-l10n-id="extra-columns-prefs-detect-intro"/>
+		<hbox align="center">
+			<button id="extra-columns-detect" data-l10n-id="extra-columns-prefs-detect"/>
+			<html:span id="extra-columns-detect-status" role="status"/>
+		</hbox>
+		<html:table id="extra-columns-detect-table" class="extra-columns-table" hidden="hidden">
+			<html:thead>
+				<html:tr>
+					<html:th class="extra-columns-narrow" data-l10n-id="extra-columns-prefs-detect-col-add"/>
+					<html:th data-l10n-id="extra-columns-prefs-col-key"/>
+					<html:th class="extra-columns-narrow" data-l10n-id="extra-columns-prefs-detect-col-items"/>
+					<html:th data-l10n-id="extra-columns-prefs-detect-col-sample"/>
+					<html:th class="extra-columns-narrow" data-l10n-id="extra-columns-prefs-col-number"/>
+				</html:tr>
+			</html:thead>
+			<html:tbody id="extra-columns-detect-rows"/>
+		</html:table>
+		<hbox>
+			<button id="extra-columns-detect-add" data-l10n-id="extra-columns-prefs-detect-add" hidden="true"/>
+		</hbox>
+	</groupbox>
+</vbox>

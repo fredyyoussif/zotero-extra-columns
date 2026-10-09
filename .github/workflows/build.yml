@@ -1,0 +1,33 @@
+name: Build XPI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # build.ps1 targets Windows PowerShell, so build on Windows.
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: powershell
+        run: |
+          $version = (Get-Content -Raw manifest.json | ConvertFrom-Json).version
+          # Add-Content writes no byte-order mark, which would break the output name.
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Build
+        shell: powershell
+        run: ./build.ps1
+
+      - name: Upload XPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: extra-columns-${{ steps.version.outputs.version }}
+          path: extra-columns.xpi
+          if-no-files-found: error

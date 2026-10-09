@@ -1,0 +1,66 @@
+#extra-columns-prefs .extra-columns-table {
+	border-collapse: collapse;
+	width: 100%;
+	margin-block: 8px;
+}
+
+#extra-columns-prefs .extra-columns-table th {
+	text-align: start;
+	font-weight: 600;
+	padding: 4px 6px;
+}
+
+#extra-columns-prefs .extra-columns-table td {
+	padding: 3px 6px;
+	vertical-align: middle;
+}
+
+#extra-columns-prefs .extra-columns-table tfoot td {
+	padding-top: 10px;
+}
+
+#extra-columns-prefs .extra-columns-table input[type="text"] {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+#extra-columns-prefs .extra-columns-narrow {
+	width: 1%;
+	white-space: nowrap;
+	text-align: center;
+}
+
+#extra-columns-prefs .extra-columns-key {
+	font-family: monospace;
+	white-space: nowrap;
+}
+
+#extra-columns-prefs .extra-columns-actions {
+	white-space: nowrap;
+}
+
+#extra-columns-prefs .extra-columns-sample {
+	max-width: 18em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.75;
+}
+
+#extra-columns-prefs .extra-columns-error {
+	color: #d70022;
+}
+
+#extra-columns-prefs .extra-columns-warning {
+	color: #c45a00;
+	font-size: 0.9em;
+	margin-top: 2px;
+}
+
+#extra-columns-prefs .extra-columns-note {
+	opacity: 0.75;
+}
+
+#extra-columns-detect-status {
+	margin-inline-start: 8px;
+}
