@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Extra Columns",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Add your own editable columns to Zotero. Values are stored in the Extra field, so they sync with your library.",
   "icons": {
     "48": "content/icon.svg",
