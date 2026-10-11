@@ -125,3 +125,7 @@ The first line of the result says how many checks passed. The tests only read da
 ### Troubleshooting
 
 Turn on **Help > Debug Output Logging** and look for lines starting with `Extra Columns`. Errors also appear in **Tools > Developer > Error Console**.
+
+## Licence
+
+Extra Columns is free software, released under the [GNU Affero General Public License, version 3](LICENSE), the same licence as Zotero. You may use, change and share it under the terms of that licence.
