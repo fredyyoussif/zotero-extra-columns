@@ -4,7 +4,7 @@
  * Zotero 10 notes that shape this file:
  * - The Info box calls onSetData on every blur, even when nothing changed.
  * - In batch editing, the hooks receive only the first selected item. The other
- *   items are on the <item-box> element's `extraItems` property.
+ *   items are on the Info section's <info-box> element, in its `extraItems` property.
  */
 
 /* global Zotero, ExtraFields, ItemData */
@@ -30,7 +30,7 @@ var InfoRows = (function () {
 			return [item];
 		}
 		for (const win of Zotero.getMainWindows()) {
-			for (const box of win.document.querySelectorAll("item-box")) {
+			for (const box of win.document.querySelectorAll("info-box")) {
 				const extraItems = box.extraItems;
 				if (box.item && box.item.id === item.id && Array.isArray(extraItems) && extraItems.length) {
 					return [box.item, ...extraItems];
