@@ -9,7 +9,10 @@
 | `content/columns.js` | Item list columns |
 | `content/info-rows.js` | Editable rows in the Info section, including batch editing |
 | `content/detect.js` | Finds existing Extra keys for **Detect from library** |
-| `content/main.js` | Registers everything and re-registers when columns change |
+| `content/export-formats.js` | Output formats for **Export as Table**. To add a format, add an entry to `FORMATS` and a label to the locale file. No Zotero dependencies. |
+| `content/export-table.js` | The columns and cell values for **Export as Table**, and the choices it remembers in `extensions.extra-columns.export` |
+| `content/export.*` | The **Export as Table** dialog, served from `chrome://extra-columns/content/` |
+| `content/main.js` | Registers everything, re-registers when columns change, and adds the item menu entry |
 | `content/preferences.*` | The Settings pane |
 | `locale/en-US/extra-columns.ftl` | Interface text |
 

@@ -114,6 +114,32 @@ check("reserved: type", api.FieldConfig.isReservedKey("type"), true);
 check("not reserved: Reading Status", api.FieldConfig.isReservedKey("Reading Status"), false);
 check("not reserved: My Rating", api.FieldConfig.isReservedKey("My Rating"), false);
 
+// Export as Table: Markdown output
+const XF = api.ExportFormats;
+check("markdown cell escapes pipes", XF.markdownCell("a|b"), "a\\|b");
+check("markdown cell escapes backslashes", XF.markdownCell("C:\\temp"), "C:\\\\temp");
+check("markdown cell flattens line breaks", XF.markdownCell("line one\r\n\n  line two"), "line one line two");
+check("markdown cell trims", XF.markdownCell("  x  "), "x");
+check("markdown cell empty", XF.markdownCell(null), "");
+check("markdown table",
+	XF.get("markdown").serialize(
+		[{ label: "Title", align: "start" }, { label: "Rating", align: "end" }],
+		[["A | B", "4"], ["C", ""]]),
+	"| Title | Rating |\n| --- | ---: |\n| A \\| B | 4 |\n| C |  |\n");
+check("unknown format falls back to the first", XF.get("nope").id, XF.list()[0].id);
+
+// Export as Table: columns
+const exportFields = [{ id: "abc", label: "Reading status", key: "Reading Status", type: "text" },
+	{ id: "def", label: "Rating", key: "Rating", type: "number" }];
+const exportColumns = api.ExportTable.availableColumns(exportFields);
+check("export columns: plugin columns first",
+	exportColumns.slice(0, 2).map((column) => [column.id, column.label, column.align]),
+	[["field:abc", "Reading status", "start"], ["field:def", "Rating", "end"]]);
+check("export columns: Zotero title has a label",
+	!!exportColumns.find((column) => column.id === "zotero:title")?.label, true);
+check("export columns: ids are unique",
+	new Set(exportColumns.map((column) => column.id)).size, exportColumns.length);
+
 const failed = results.filter((line) => line.startsWith("FAIL")).length;
 return `${results.length - failed} of ${results.length} checks passed${failed ? `, ${failed} failed` : ""}\n\n`
 	+ results.join("\n");

@@ -9,6 +9,8 @@ var Columns = (function () {
 	"use strict";
 
 	let registeredKeys = [];
+	// Zotero prefixes the data key we pass, so keep the one it returns for each field.
+	let dataKeysByFieldID = new Map();
 
 	/**
 	 * Zotero uses this value both for display and for sorting.
@@ -51,6 +53,7 @@ var Columns = (function () {
 			}
 			if (key) {
 				registeredKeys.push(key);
+				dataKeysByFieldID.set(field.id, key);
 			}
 			else {
 				Zotero.logError(new Error(`Extra Columns: could not register a column for "${field.key}"`));
@@ -68,7 +71,13 @@ var Columns = (function () {
 			}
 		}
 		registeredKeys = [];
+		dataKeysByFieldID = new Map();
 	}
 
-	return { register, unregisterAll };
+	/** The item list's data key for a field's column, or null if it isn't registered. */
+	function getDataKey(fieldID) {
+		return dataKeysByFieldID.get(fieldID) || null;
+	}
+
+	return { register, unregisterAll, getDataKey };
 })();

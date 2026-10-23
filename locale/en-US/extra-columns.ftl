@@ -70,3 +70,34 @@ extra-columns-prefs-detect-select =
     .aria-label = Add { $key } as a column
 extra-columns-prefs-detect-add =
     .label = Add selected
+
+## Export as Table
+
+extra-columns-export-menu =
+    .label = Export as Table...
+extra-columns-export-window =
+    .title = Export as Table
+extra-columns-export-format-label = Format:
+extra-columns-export-format-markdown = Markdown table
+extra-columns-export-columns-label = Columns, in export order
+extra-columns-export-match =
+    .label = Match item list
+    .tooltiptext = Use the columns shown in the item list, in the same order
+extra-columns-export-col-creators = All Creators
+extra-columns-export-summary =
+    { $count ->
+        [one] 1 item will be exported.
+       *[other] { $count } items will be exported.
+    }
+extra-columns-export-skipped =
+    { $count ->
+        [one] 1 note or attachment is left out.
+       *[other] { $count } notes and attachments are left out.
+    }
+extra-columns-export-copy =
+    .label = Copy to clipboard
+extra-columns-export-save =
+    .label = Save...
+extra-columns-export-save-title = Save Table
+extra-columns-export-file-name = Zotero items
+extra-columns-export-save-failed = The table couldn't be saved. See Tools > Developer > Error Console for details.

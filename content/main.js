@@ -1,21 +1,26 @@
 /*
  * Ties the pieces together: registers columns and Info rows from the field
- * definitions, and registers them again whenever the definitions change.
+ * definitions, registers them again whenever the definitions change, and adds
+ * Export as Table to the item menu.
  */
 
-/* global Zotero, FieldConfig, Columns, InfoRows */
+/* global Zotero, FieldConfig, Columns, InfoRows, ExportTable */
 
 var ExtraColumns = (function () {
 	"use strict";
 
+	const EXPORT_DIALOG_URL = "chrome://extra-columns/content/export.xhtml";
+
 	let pluginID = null;
 	let prefObserverID = null;
+	let exportMenuID = null;
 	let skippedFieldIDs = [];
 
 	async function init(options) {
 		pluginID = options.pluginID;
 		registerAll();
 		prefObserverID = Zotero.Prefs.registerObserver(FieldConfig.PREF, () => reconcile(), true);
+		registerExportMenu();
 
 		try {
 			await Zotero.PreferencePanes.register({
@@ -63,10 +68,55 @@ var ExtraColumns = (function () {
 		}
 	}
 
+	/** "Export as Table..." in the item list's context menu. */
+	function registerExportMenu() {
+		try {
+			exportMenuID = Zotero.MenuManager.registerMenu({
+				menuID: "extra-columns-export",
+				pluginID,
+				target: "main/library/item",
+				menus: [{
+					menuType: "menuitem",
+					l10nID: "extra-columns-export-menu",
+					onShowing: (event, context) => {
+						context.setVisible(ExportTable.exportableItems(context.items || []).length > 0);
+					},
+					onCommand: (event, context) => openExportDialog(event.target.ownerGlobal, context.items || []),
+				}],
+			}) || null;
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+		if (!exportMenuID) {
+			Zotero.logError(new Error("Extra Columns: could not add Export as Table to the item menu"));
+		}
+	}
+
+	function openExportDialog(win, selected) {
+		const items = ExportTable.exportableItems(selected);
+		if (!items.length) {
+			return;
+		}
+		win.openDialog(EXPORT_DIALOG_URL, "", "chrome,dialog,centerscreen,resizable", {
+			items,
+			skippedCount: selected.length - items.length,
+		});
+	}
+
 	function shutdown() {
 		if (prefObserverID !== null) {
 			Zotero.Prefs.unregisterObserver(prefObserverID);
 			prefObserverID = null;
+		}
+		if (exportMenuID) {
+			try {
+				Zotero.MenuManager.unregisterMenu(exportMenuID);
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+			exportMenuID = null;
 		}
 		unregisterAll();
 	}

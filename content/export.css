@@ -1,0 +1,46 @@
+#extra-columns-export {
+	min-width: 30em;
+}
+
+.extra-columns-export-heading {
+	margin-top: 10px;
+}
+
+#extra-columns-export-columns {
+	height: 22em;
+	overflow-y: auto;
+	margin-block: 6px;
+	padding: 4px;
+	border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+	border-radius: 4px;
+}
+
+.extra-columns-export-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding-inline: 4px;
+}
+
+.extra-columns-export-row label {
+	flex: 1;
+}
+
+.extra-columns-export-row button {
+	min-width: 0;
+	margin-block: 1px;
+}
+
+/* Unticked columns have no position, but keep the row height the same. */
+.extra-columns-export-row.unchosen button {
+	visibility: hidden;
+}
+
+.extra-columns-export-divider {
+	border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+	margin: 4px;
+}
+
+.extra-columns-export-note {
+	opacity: 0.75;
+}

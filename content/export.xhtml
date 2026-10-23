@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<?xml-stylesheet href="chrome://zotero-platform/content/zotero.css"?>
+<?xml-stylesheet href="chrome://extra-columns/content/export.css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+	xmlns:html="http://www.w3.org/1999/xhtml"
+	data-l10n-id="extra-columns-export-window">
+<linkset>
+	<html:link rel="localization" href="extra-columns.ftl"/>
+</linkset>
+<dialog id="extra-columns-export" buttons="accept,extra1,cancel">
+	<script>
+		Services.scriptloader.loadSubScript("chrome://zotero/content/include.js", this);
+		Services.scriptloader.loadSubScript("chrome://zotero/content/customElements.js", this);
+	</script>
+	<script src="export.js"/>
+
+	<vbox flex="1">
+		<hbox align="center">
+			<label data-l10n-id="extra-columns-export-format-label" control="extra-columns-export-format"/>
+			<menulist id="extra-columns-export-format" native="true">
+				<menupopup/>
+			</menulist>
+		</hbox>
+		<hbox align="center" class="extra-columns-export-heading">
+			<label id="extra-columns-export-columns-label" data-l10n-id="extra-columns-export-columns-label"/>
+			<spacer flex="1"/>
+			<button id="extra-columns-export-match" data-l10n-id="extra-columns-export-match"/>
+		</hbox>
+		<html:div id="extra-columns-export-columns" role="group" aria-labelledby="extra-columns-export-columns-label"/>
+		<html:p id="extra-columns-export-summary"/>
+		<html:p id="extra-columns-export-skipped" class="extra-columns-export-note" hidden="hidden"/>
+	</vbox>
+</dialog>
+</window>

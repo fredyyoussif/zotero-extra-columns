@@ -5,9 +5,9 @@
  * which are loaded into this scope and share its globals.
  */
 
-/* global Zotero, Services */
+/* global Zotero, Services, Components */
 
-var ExtraFields, FieldConfig, ItemData, Columns, InfoRows, Detect, ExtraColumns;
+var ExtraFields, FieldConfig, ItemData, Columns, InfoRows, Detect, ExportFormats, ExportTable, ExtraColumns;
 
 // Load order matters: later scripts use the objects defined by earlier ones.
 var CONTENT_SCRIPTS = [
@@ -17,15 +17,25 @@ var CONTENT_SCRIPTS = [
 	"columns.js",
 	"info-rows.js",
 	"detect.js",
+	"export-formats.js",
+	"export-table.js",
 	"main.js",
 ];
 var FTL_FILE = "extra-columns.ftl";
 var APP_SHUTDOWN_REASON = 2;
+var chromeHandle = null;
 
 function install() {}
 
 async function startup({ id, version, rootURI }) {
 	await Zotero.initializationPromise;
+
+	// Serves the export dialog at chrome://extra-columns/content/.
+	const aomStartup = Components.classes["@mozilla.org/addons/addon-manager-startup;1"]
+		.getService(Components.interfaces.amIAddonManagerStartup);
+	chromeHandle = aomStartup.registerChrome(Services.io.newURI(rootURI + "manifest.json"), [
+		["content", "extra-columns", "content/"],
+	]);
 
 	for (const file of CONTENT_SCRIPTS) {
 		Services.scriptloader.loadSubScript(rootURI + "content/" + file);
@@ -38,6 +48,8 @@ async function startup({ id, version, rootURI }) {
 		FieldConfig,
 		ItemData,
 		Detect,
+		ExportFormats,
+		ExportTable,
 		getSkippedFieldIDs: () => ExtraColumns.getSkippedFieldIDs(),
 		reconcile: () => ExtraColumns.reconcile(),
 	};
@@ -69,8 +81,12 @@ function shutdown(data, reason) {
 	for (const win of Zotero.getMainWindows()) {
 		removeFromWindow(win);
 	}
+	if (chromeHandle) {
+		chromeHandle.destruct();
+		chromeHandle = null;
+	}
 	delete Zotero.ExtraColumns;
-	ExtraFields = FieldConfig = ItemData = Columns = InfoRows = Detect = ExtraColumns = undefined;
+	ExtraFields = FieldConfig = ItemData = Columns = InfoRows = Detect = ExportFormats = ExportTable = ExtraColumns = undefined;
 }
 
 // Field definitions and item data are kept, so reinstalling restores everything.
