@@ -1,8 +1,16 @@
 # Extra Columns
 
-A Zotero 10 plugin that lets you add your own columns to the item list. You can sort by them, and you edit their values in the item pane's **Info** section, just like Title or Date.
+A Zotero 10 plugin that lets you add your own columns to the item list. You can
+sort by them, and you edit their values in the item pane's **Info** section,
+just like Title or Date. You can also export standard and "extra" fields into a
+table in various formats.
 
-Each value is saved as a `Key: value` line in the item's **Extra** field. Extra is an ordinary Zotero field, so your values sync to zotero.org and to your other computers with the rest of your library.
+This is useful for extracting, formatting and sorting by key information from
+items in your library e.g. for a literature grid or a literature review matrix. 
+
+Each value is saved as a `Key: value` line in the item's **Extra** field. Extra
+is an ordinary Zotero field, so your values sync to zotero.org and to your other
+computers with the rest of your library.
 
 ## Installing
 
