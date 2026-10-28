@@ -137,6 +137,35 @@ check("export columns: plugin columns first",
 	[["field:abc", "Reading status", "start"], ["field:def", "Rating", "end"]]);
 check("export columns: Zotero title has a label",
 	!!exportColumns.find((column) => column.id === "zotero:title")?.label, true);
+check("export columns: citation tag is offered",
+	exportColumns.some((column) => column.id === "zotero:citationTag"), true);
+// Export as Table: citation keys, matching Zotero's BibTeX export
+const ET = api.ExportTable;
+check("cite key from Extra", ET.extraCitationKey("Note\n citation key : abc \nCitation Key: def"), "abc");
+check("cite key from Extra skips empty", ET.extraCitationKey("Citation Key:\nCitation Key: x"), "x");
+check("cite key from Extra missing", ET.extraCitationKey("PMID: 1"), "");
+const recent = "2021-01-01 00:00:00";
+const keysA = new Set();
+check("built cite key",
+	ET.generatedCitationKey({ lastName: "Smith", title: "The Art of War", date: "2020-05-01", dateAdded: recent }, keysA),
+	"smith_art_2020");
+check("built cite key, duplicate gets a suffix",
+	ET.generatedCitationKey({ lastName: "Smith", title: "Art and War", date: "May 2020", dateAdded: recent }, keysA),
+	"smith_art_2020-1");
+check("built cite key, nothing to use",
+	ET.generatedCitationKey({ lastName: "", title: "", date: "", dateAdded: recent }, new Set()),
+	"noauthor_notitle_nodate");
+// BibTeX.js leaves the title word empty when markup or a skipped word comes first.
+check("built cite key, two-word surname and markup",
+	ET.generatedCitationKey({ lastName: "Van Dyke", title: "<i>Of</i> Mice", date: "1999", dateAdded: recent }, new Set()),
+	"van_dyke__1999");
+check("built cite key, simple characters since 2020",
+	ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: recent }, new Set()),
+	"lee_c_2010");
+check("built cite key, legacy characters before 2020",
+	ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: "2015-06-01 00:00:00" }, new Set()),
+	"lee_c++_2010");
+
 check("export columns: ids are unique",
 	new Set(exportColumns.map((column) => column.id)).size, exportColumns.length);
 

@@ -63,7 +63,7 @@ Zotero reads some Extra lines as its own data. Examples are `Archive: ...`, `Lan
 
 1. Select the items in the item list, right-click, and choose **Export as Table...**.
 2. Pick a **Format**. Markdown table is the only one for now.
-3. Tick the columns you want. Your own columns are listed first, then Zotero's, including some that aren't item-list columns, such as **All Creators**, **DOI**, **URL** and **Abstract**.
+3. Tick the columns you want. Your own columns are listed first, then Zotero's, including some that aren't item-list columns, such as **All Creators**, **Citation (@key)**, **DOI**, **URL** and **Abstract**.
 4. Use **Up** and **Down** to set the column order. Ticked columns are listed in the order they'll appear.
 5. Click **Copy to clipboard**, or **Save...** to write a file.
 
@@ -71,6 +71,7 @@ The first time, the dialog ticks the columns showing in the item list, in the sa
 
 - Each selected item becomes one row. Notes and attachments are left out.
 - Values look the same as in the item list. Dates use your computer's date format, and number columns are right-aligned.
+- **Citation (@key)** gives a Pandoc-style citation such as `@smith_climate_2020`, for writing in Markdown. It uses the same key as Zotero's BibTeX export: a `Citation Key: ...` line in Extra, then Zotero's **Citation Key** field, then [Better BibTeX](https://retorque.re/zotero-better-bibtex/)'s key if it's installed. Otherwise it builds the key the BibTeX export would, from the first author's last name, the first significant title word and the year. If two items in one export get the same built key, the later ones get `-1`, `-2` and so on, as in the BibTeX export.
 - Line breaks, for example in an abstract, become spaces. `|` characters are escaped so they don't break the table.
 
 ## Setting up another computer

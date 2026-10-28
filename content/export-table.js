@@ -51,6 +51,7 @@ var ExportTable = (function () {
 		{ key: "callNumber", string: "itemFields.callNumber" },
 		{ key: "rights", string: "itemFields.rights" },
 		{ key: "citationKey", string: "itemFields.citationKey" },
+		{ key: "citationTag", l10nID: "extra-columns-export-col-citation-tag" },
 		{ key: "abstractNote", string: "itemFields.abstractNote" },
 		{ key: "extra", string: "itemFields.extra" },
 		{ key: "dateAdded", string: "itemFields.dateAdded" },
@@ -166,7 +167,90 @@ var ExportTable = (function () {
 		return [creator.lastName, creator.firstName].filter(Boolean).join(", ");
 	}
 
-	function zoteroValue(item, key) {
+	//
+	// Citation keys, matching Zotero's BibTeX export (the BibTeX.js translator)
+	//
+
+	// Copied from BibTeX.js: words left out when picking the title word, and markup.
+	const CITE_KEY_TITLE_BANNED = /\b(a|an|the|some|from|on|in|to|of|do|with|der|die|das|ein|eine|einer|eines|einem|einen|un|une|la|le|l\'|les|el|las|los|al|uno|una|unos|unas|de|des|del|d\')(\s+|\b)|(<\/?(i|b|sup|sub|sc|span style=\"small-caps\"|span)>)/g;
+	const CITE_KEY_LEGACY_CLEAN = /[^a-z0-9\!\$\&\*\+\-\.\/\:\;\<\>\?\[\]\^\_\`\|]+/g;
+	const CITE_KEY_SIMPLE_CLEAN = /[^a-z0-9_-]/g;
+
+	/** The first non-empty "Citation Key:" line in Extra, parsed the way BibTeX.js does. */
+	function extraCitationKey(extra) {
+		for (const line of String(extra || "").split(/[\r\n]+/)) {
+			const trimmed = line.trim();
+			const splitAt = trimmed.indexOf(":");
+			if (splitAt > 1 && trimmed.substr(0, splitAt).trim().toLowerCase() === "citation key") {
+				const value = trimmed.substr(splitAt + 1).trim();
+				if (value) {
+					return value;
+				}
+			}
+		}
+		return "";
+	}
+
+	/**
+	 * The key BibTeX.js makes up for an item with no stored key: "%a_%t_%y",
+	 * for example "smith_climate_2020". Keys already in `usedKeys` get "-1", "-2"
+	 * and so on, as they do within one BibTeX export.
+	 * @param {{lastName: string, title: string, date: string, dateAdded: string}} data
+	 * @param {Set<string>} usedKeys - Shared by all items in one export; updated.
+	 */
+	function generatedCitationKey({ lastName, title, date, dateAdded }, usedKeys) {
+		const author = lastName ? lastName.toLowerCase().replace(/ /g, "_").replace(/,/g, "") : "noauthor";
+		const titleWord = title ? title.toLowerCase().replace(CITE_KEY_TITLE_BANNED, "").split(/\s+/g)[0] : "notitle";
+		let year = "nodate";
+		if (date) {
+			const parsed = Zotero.Date.strToDate(date);
+			if (parsed.year && /^[0-9]+/.test(parsed.year)) {
+				year = String(parsed.year);
+			}
+		}
+
+		// Items added since 2020 get the simpler key characters, as in BibTeX.js.
+		const simple = Zotero.Prefs.get("translators.BibTeX.export.simpleCitekey")
+			|| (dateAdded && parseInt(dateAdded.substr(0, 4)) >= 2020);
+		const base = Zotero.Utilities.removeDiacritics(`${author}_${titleWord}_${year}`.toLowerCase(), true)
+			.replace(simple ? CITE_KEY_SIMPLE_CLEAN : CITE_KEY_LEGACY_CLEAN, "");
+
+		let key = base;
+		for (let i = 1; usedKeys.has(key); i++) {
+			key = `${base}-${i}`;
+		}
+		usedKeys.add(key);
+		return key;
+	}
+
+	/**
+	 * The key a BibTeX export would use: a "Citation Key:" line in Extra, Zotero's
+	 * Citation Key field, Better BibTeX's key if it's installed, or a generated key.
+	 */
+	function citationKey(item, usedKeys) {
+		const stored = extraCitationKey(item.getField("extra")) || item.getField("citationKey", false, true);
+		if (stored) {
+			return stored;
+		}
+		try {
+			const key = Zotero.BetterBibTeX?.KeyManager?.get(item.id)?.citationKey;
+			if (key) {
+				return key;
+			}
+		}
+		catch (e) {
+			Zotero.debug(`Extra Columns: could not get a Better BibTeX key for item ${item.id}: ${e}`);
+		}
+		return generatedCitationKey({
+			lastName: item.getCreators()[0]?.lastName || "",
+			title: item.getField("title", false, true),
+			date: item.getField("date", false, true),
+			dateAdded: item.dateAdded || "",
+		}, usedKeys);
+	}
+
+	/** @param {object} exportState - Shared by all cells in one export. */
+	function zoteroValue(item, key, exportState) {
 		switch (key) {
 			case "title":
 				return item.getDisplayTitle();
@@ -178,6 +262,10 @@ var ExportTable = (function () {
 				return Zotero.ItemTypes.getLocalizedString(item.itemTypeID);
 			case "year":
 				return year(item);
+			case "citationTag": {
+				const key = citationKey(item, exportState.citationKeys);
+				return key ? "@" + key : "";
+			}
 			case "accessDate":
 			case "dateAdded":
 			case "dateModified":
@@ -187,9 +275,11 @@ var ExportTable = (function () {
 		}
 	}
 
-	function cellValue(item, column) {
+	function cellValue(item, column, exportState) {
 		try {
-			const value = column.field ? ItemData.readValue(item, column.field) : zoteroValue(item, column.key);
+			const value = column.field
+				? ItemData.readValue(item, column.field)
+				: zoteroValue(item, column.key, exportState);
 			return String(value ?? "");
 		}
 		catch (e) {
@@ -200,7 +290,8 @@ var ExportTable = (function () {
 
 	/** One array of cell text per item, in column order. */
 	function rows(items, columns) {
-		return items.map((item) => columns.map((column) => cellValue(item, column)));
+		const exportState = { citationKeys: new Set() };
+		return items.map((item) => columns.map((column) => cellValue(item, column, exportState)));
 	}
 
 	/** The format and columns used last time. Either can be null. */
@@ -228,6 +319,8 @@ var ExportTable = (function () {
 		itemListColumnIDs,
 		exportableItems,
 		rows,
+		extraCitationKey,
+		generatedCitationKey,
 		loadSettings,
 		saveSettings,
 	};
