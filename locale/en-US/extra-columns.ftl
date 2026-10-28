@@ -79,12 +79,15 @@ extra-columns-export-window =
     .title = Export as Table
 extra-columns-export-format-label = Format:
 extra-columns-export-format-markdown = Markdown table
+extra-columns-export-format-latex = LaTeX table
+extra-columns-export-format-csv = CSV (comma-separated values)
 extra-columns-export-columns-label = Columns, in export order
 extra-columns-export-match =
     .label = Match item list
     .tooltiptext = Use the columns shown in the item list, in the same order
 extra-columns-export-col-creators = All Creators
 extra-columns-export-col-citation-tag = Citation (@key)
+extra-columns-export-col-latex-citation = Citation (\cite{"{"}key{"}"})
 extra-columns-export-summary =
     { $count ->
         [one] 1 item will be exported.

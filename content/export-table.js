@@ -16,6 +16,7 @@ var ExportTable = (function () {
 	// Zotero's item-list columns, with the string each one uses as its header.
 	// Columns about the library rather than the item (Notes, Feed, Added By and
 	// so on) are left out. Entries with an l10nID aren't item-list columns.
+	// Entries marked `latex` give LaTeX, which the LaTeX format doesn't escape.
 	const ZOTERO_COLUMNS = [
 		{ key: "title", string: "itemFields.title" },
 		{ key: "firstCreator", string: "zotero.items.creator_column" },
@@ -52,6 +53,7 @@ var ExportTable = (function () {
 		{ key: "rights", string: "itemFields.rights" },
 		{ key: "citationKey", string: "itemFields.citationKey" },
 		{ key: "citationTag", l10nID: "extra-columns-export-col-citation-tag" },
+		{ key: "latexCitation", l10nID: "extra-columns-export-col-latex-citation", latex: true },
 		{ key: "abstractNote", string: "itemFields.abstractNote" },
 		{ key: "extra", string: "itemFields.extra" },
 		{ key: "dateAdded", string: "itemFields.dateAdded" },
@@ -84,6 +86,7 @@ var ExportTable = (function () {
 			label: column.l10nID ? null : zoteroLabel(column),
 			l10nID: column.l10nID,
 			align: "start",
+			latex: !!column.latex,
 			key: column.key,
 		}));
 		return [...custom, ...zotero];
@@ -249,6 +252,17 @@ var ExportTable = (function () {
 		}, usedKeys);
 	}
 
+	/**
+	 * The item's key, worked out once per export, so both citation columns
+	 * show the same key and a built key isn't counted as its own duplicate.
+	 */
+	function exportCitationKey(item, exportState) {
+		if (!exportState.keysByItem.has(item.id)) {
+			exportState.keysByItem.set(item.id, citationKey(item, exportState.citationKeys));
+		}
+		return exportState.keysByItem.get(item.id);
+	}
+
 	/** @param {object} exportState - Shared by all cells in one export. */
 	function zoteroValue(item, key, exportState) {
 		switch (key) {
@@ -263,8 +277,12 @@ var ExportTable = (function () {
 			case "year":
 				return year(item);
 			case "citationTag": {
-				const key = citationKey(item, exportState.citationKeys);
+				const key = exportCitationKey(item, exportState);
 				return key ? "@" + key : "";
+			}
+			case "latexCitation": {
+				const key = exportCitationKey(item, exportState);
+				return key ? `\\cite{${key}}` : "";
 			}
 			case "accessDate":
 			case "dateAdded":
@@ -290,7 +308,7 @@ var ExportTable = (function () {
 
 	/** One array of cell text per item, in column order. */
 	function rows(items, columns) {
-		const exportState = { citationKeys: new Set() };
+		const exportState = { citationKeys: new Set(), keysByItem: new Map() };
 		return items.map((item) => columns.map((column) => cellValue(item, column, exportState)));
 	}
 

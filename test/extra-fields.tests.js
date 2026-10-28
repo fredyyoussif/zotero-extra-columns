@@ -128,6 +128,26 @@ check("markdown table",
 	"| Title | Rating |\n| --- | ---: |\n| A \\| B | 4 |\n| C |  |\n");
 check("unknown format falls back to the first", XF.get("nope").id, XF.list()[0].id);
 
+// Export as Table: LaTeX output
+check("latex cell escapes specials", XF.latexCell("50% & $5 #1 a_b {x}"), "50\\% \\& \\$5 \\#1 a\\_b \\{x\\}");
+check("latex cell escapes backslash, tilde and caret", XF.latexCell("C:\\~^"),
+	"C:\\textbackslash{}\\textasciitilde{}\\textasciicircum{}");
+check("latex cell flattens line breaks", XF.latexCell("line one\n line two"), "line one line two");
+check("latex table",
+	XF.get("latex").serialize(
+		[{ label: "Title", align: "start" }, { label: "Cite", align: "start", latex: true }, { label: "Rating", align: "end" }],
+		[["A & B", "\\cite{a_b}", "4"]]),
+	"\\begin{tabular}{llr}\n\\hline\nTitle & Cite & Rating \\\\\n\\hline\nA \\& B & \\cite{a_b} & 4 \\\\\n\\hline\n\\end{tabular}\n");
+
+// Export as Table: CSV output
+check("csv cell plain", XF.csvCell("abc"), "abc");
+check("csv cell quotes commas", XF.csvCell("a, b"), "\"a, b\"");
+check("csv cell doubles quotes", XF.csvCell("say \"hi\""), "\"say \"\"hi\"\"\"");
+check("csv cell keeps line breaks", XF.csvCell("a\nb"), "\"a\nb\"");
+check("csv table",
+	XF.get("csv").serialize([{ label: "Title" }, { label: "Rating" }], [["A, B", "4"], ["C", ""]]),
+	"Title,Rating\r\n\"A, B\",4\r\nC,\r\n");
+
 // Export as Table: columns
 const exportFields = [{ id: "abc", label: "Reading status", key: "Reading Status", type: "text" },
 	{ id: "def", label: "Rating", key: "Rating", type: "number" }];
@@ -139,6 +159,8 @@ check("export columns: Zotero title has a label",
 	!!exportColumns.find((column) => column.id === "zotero:title")?.label, true);
 check("export columns: citation tag is offered",
 	exportColumns.some((column) => column.id === "zotero:citationTag"), true);
+check("export columns: LaTeX citation is offered and not escaped",
+	exportColumns.find((column) => column.id === "zotero:latexCitation")?.latex, true);
 // Export as Table: citation keys, matching Zotero's BibTeX export
 const ET = api.ExportTable;
 check("cite key from Extra", ET.extraCitationKey("Note\n citation key : abc \nCitation Key: def"), "abc");

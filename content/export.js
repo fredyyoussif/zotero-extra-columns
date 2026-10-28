@@ -250,7 +250,7 @@ var ExtraColumnsExport = (function () {
 		if (result !== picker.returnOK && result !== picker.returnReplace) {
 			return false;
 		}
-		await Zotero.File.putContentsAsync(picker.file, tableText(format));
+		await Zotero.File.putContentsAsync(picker.file, (format.bom ? "﻿" : "") + tableText(format));
 		remember(format);
 		return true;
 	}
