@@ -3,7 +3,7 @@
  * uses the plugin's logic through Zotero.ExtraColumns.
  */
 
-/* global Zotero, ChromeUtils, document, window */
+/* global Zotero, ChromeUtils, Services, document, window */
 
 var ExtraColumnsExport = (function () {
 	"use strict";
@@ -24,6 +24,11 @@ var ExtraColumnsExport = (function () {
 	let columns = [];
 	let chosenIDs = [];
 	let formatLabels = new Map();
+	// Saved layouts, {name, format, columnIDs}, and the name of the one last
+	// chosen or saved here.
+	let layouts = [];
+	let layoutName = null;
+	let layoutPlaceholders = {};
 
 	function byID(id) {
 		return document.getElementById(id);
@@ -73,6 +78,7 @@ var ExtraColumnsExport = (function () {
 		}
 
 		await renderFormats(settings.format);
+		await initLayouts(settings);
 
 		localize(dialog.getButton("accept"), "extra-columns-export-save");
 		localize(dialog.getButton("extra1"), "extra-columns-export-copy");
@@ -98,6 +104,8 @@ var ExtraColumnsExport = (function () {
 		}
 
 		renderColumns();
+		// The dialog sized itself before the columns were listed.
+		window.sizeToContent();
 	}
 
 	/** Combined columns first, so new ones are easy to find, then the rest. */
@@ -137,6 +145,132 @@ var ExtraColumnsExport = (function () {
 
 	function currentFormat() {
 		return api.ExportFormats.get(byID("extra-columns-export-format").value);
+	}
+
+	//
+	// Saved layouts
+	//
+
+	async function initLayouts(settings) {
+		layouts = settings.layouts;
+		const [none, choose] = await document.l10n.formatValues([
+			{ id: "extra-columns-export-layout-none" },
+			{ id: "extra-columns-export-layout-choose" },
+		]);
+		layoutPlaceholders = { none, choose };
+
+		// The chosen item, not the menu's value, which may not be updated yet.
+		// Choosing the layout that's already shown puts its choices back.
+		byID("extra-columns-export-layout").addEventListener("command", (event) => {
+			const name = event.target.getAttribute("value");
+			if (name) {
+				applyLayout(name);
+			}
+		});
+		byID("extra-columns-export-layout-save").addEventListener("command", () => {
+			saveLayout().catch(Zotero.logError);
+		});
+		byID("extra-columns-export-layout-delete").addEventListener("command", () => {
+			deleteLayout().catch(Zotero.logError);
+		});
+
+		// Show the layout used last time, unless the choices have changed since.
+		const last = findLayout(settings.layout);
+		if (last && last.format === currentFormat().id
+			&& JSON.stringify(knownIDs(last.columnIDs)) === JSON.stringify(chosenIDs)) {
+			layoutName = last.name;
+		}
+		renderLayouts();
+	}
+
+	function findLayout(name) {
+		return layouts.find((layout) => layout.name === name);
+	}
+
+	/** Rebuilds the menu. Only when the list changes, never while an item is being chosen. */
+	function renderLayouts() {
+		const menulist = byID("extra-columns-export-layout");
+		const popup = menulist.menupopup;
+		popup.replaceChildren();
+		const placeholder = document.createXULElement("menuitem");
+		placeholder.setAttribute("value", "");
+		placeholder.setAttribute("label", layouts.length ? layoutPlaceholders.choose : layoutPlaceholders.none);
+		popup.append(placeholder);
+		for (const layout of layouts) {
+			const item = document.createXULElement("menuitem");
+			item.setAttribute("value", layout.name);
+			item.setAttribute("label", layout.name);
+			popup.append(item);
+		}
+		menulist.disabled = !layouts.length;
+		showLayout();
+	}
+
+	/** Shows the layout last chosen or saved, if it still exists. */
+	function showLayout() {
+		if (!findLayout(layoutName)) {
+			layoutName = null;
+		}
+		byID("extra-columns-export-layout").value = layoutName ?? "";
+		byID("extra-columns-export-layout-delete").disabled = !layoutName;
+	}
+
+	function applyLayout(name) {
+		const layout = findLayout(name);
+		if (!layout) {
+			return;
+		}
+		if (editingID) {
+			setEditorShown(false);
+		}
+		layoutName = name;
+		byID("extra-columns-export-format").value = api.ExportFormats.get(layout.format).id;
+		chosenIDs = knownIDs(layout.columnIDs);
+		showLayout();
+		renderColumns();
+	}
+
+	/** Saves the format and ticked columns under a name, replacing a layout with that name. */
+	async function saveLayout() {
+		const [title, text] = await document.l10n.formatValues([
+			{ id: "extra-columns-export-layout-save-title" },
+			{ id: "extra-columns-export-layout-save-prompt" },
+		]);
+		const input = { value: layoutName || "" };
+		if (!Services.prompt.prompt(window, title, text, input, null, {})) {
+			return;
+		}
+		const name = input.value.trim();
+		if (!name) {
+			return;
+		}
+		if (name !== layoutName && findLayout(name)) {
+			const question = await document.l10n.formatValue("extra-columns-export-layout-replace", { name });
+			if (!Services.prompt.confirm(window, title, question)) {
+				return;
+			}
+		}
+		layouts = api.ExportTable.putLayout(layouts, { name, format: currentFormat().id, columnIDs: chosenIDs });
+		layoutName = name;
+		api.ExportTable.saveSettings({ layouts, layout: name });
+		renderLayouts();
+	}
+
+	async function deleteLayout() {
+		const name = layoutName;
+		if (!findLayout(name)) {
+			return;
+		}
+		const [title, question] = await document.l10n.formatValues([
+			{ id: "extra-columns-export-layout-delete-title" },
+			{ id: "extra-columns-export-layout-delete-confirm", args: { name } },
+		]);
+		if (!Services.prompt.confirm(window, title, question)) {
+			return;
+		}
+		layouts = layouts.filter((layout) => layout.name !== name);
+		api.ExportTable.saveSettings({ layouts });
+		renderLayouts();
 	}
 
 	//
@@ -390,7 +524,7 @@ var ExtraColumnsExport = (function () {
 	}
 
 	function remember(format) {
-		api.ExportTable.saveSettings({ format: format.id, columnIDs: chosenIDs, combined });
+		api.ExportTable.saveSettings({ format: format.id, columnIDs: chosenIDs, combined, layout: layoutName });
 	}
 
 	function onCopy() {

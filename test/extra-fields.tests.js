@@ -228,6 +228,25 @@ check("combined column: finds fields by key, label and Zotero key",
 check("combined column: unknown field",
 	combinedColumn("{year} {nope}").error, { code: "unknown-field", name: "nope" });
 check("combined column: syntax error", combinedColumn("{year").error, { code: "unclosed-brace" });
+
+// Export as Table: saved layouts
+check("layouts: cleaned",
+	api.ExportTable.cleanLayouts([
+		{ name: " A ", format: "csv", columnIDs: ["zotero:year", 3] },
+		{ name: "A", format: "latex", columnIDs: [] },
+		{ name: "", columnIDs: [] },
+		{ name: "B" },
+		null,
+	]),
+	[{ name: "A", format: "csv", columnIDs: ["zotero:year", "3"] }]);
+check("layouts: not a list", api.ExportTable.cleanLayouts({ name: "A" }), []);
+const layoutA = { name: "A", format: "csv", columnIDs: ["zotero:year"] };
+const layoutB = { name: "B", format: "markdown", columnIDs: [] };
+check("layouts: saving a new name adds it",
+	api.ExportTable.putLayout([layoutA], layoutB), [layoutA, layoutB]);
+check("layouts: saving a used name replaces it in place",
+	api.ExportTable.putLayout([layoutA, layoutB], { ...layoutA, format: "latex" }),
+	[{ ...layoutA, format: "latex" }, layoutB]);
 // Export as Table: citation keys, matching Zotero's BibTeX export
 const ET = api.ExportTable;
 check("cite key from Extra", ET.extraCitationKey("Note\n citation key : abc \nCitation Key: def"), "abc");
@@ -305,6 +324,8 @@ async function realItemChecks(items) {
 async function exportDialogChecks(items) {
 	const PREF = "extensions.extra-columns.export";
 	const savedPref = Zotero.Prefs.get(PREF, true);
+	const testLayout = { name: "Extra Columns test layout", format: "csv", columnIDs: ["zotero:year", "zotero:title"] };
+	ET.saveSettings({ layouts: ET.putLayout(ET.loadSettings().layouts, testLayout), layout: null });
 	const win = Zotero.getMainWindow().openDialog("chrome://extra-columns/content/export.xhtml", "",
 		"chrome,dialog,resizable", { items, skippedCount: 0 });
 	const waitFor = async (condition, ms = 5000) => {
@@ -315,13 +336,16 @@ async function exportDialogChecks(items) {
 		return condition();
 	};
 	try {
-		const scriptLoaded = await waitFor(() => win.closed || win.ExtraColumnsExport?.ready);
-		checkThat("export dialog: script loads", scriptLoaded && !win.closed,
-			`window ${win.closed ? "closed" : "open"}, document ${win.document?.readyState}, `
-			+ `script ${typeof win.ExtraColumnsExport}, location ${win.location?.href}`);
+		// A boolean: returning the promise itself would make waitFor wait for it.
+		const scriptLoaded = await waitFor(() => win.closed || !!win.ExtraColumnsExport?.ready);
 		if (!scriptLoaded || win.closed) {
+			checkThat("export dialog: script loads", false,
+				`window ${win.closed ? "closed" : "open"}, document ${win.document?.readyState}, `
+				+ `script ${typeof win.ExtraColumnsExport}, location ${win.location?.href}\n      `
+				+ await dialogFileDiagnosis());
 			return;
 		}
+		checkThat("export dialog: script loads", true);
 		const outcome = await Promise.race([
 			win.ExtraColumnsExport.ready.then(() => "ready", (e) => `failed: ${e}\n${e?.stack || ""}`),
 			Zotero.Promise.delay(10000).then(() => "still loading after 10 seconds"),
@@ -356,6 +380,29 @@ async function exportDialogChecks(items) {
 			byID("extra-columns-export-insert").menupopup.children.length > exportColumns.length - exportFields.length,
 			`${byID("extra-columns-export-insert").menupopup.children.length} entries`);
 
+		// Each part's width with nothing wrapped, widest first. Parts whose text
+		// is meant to wrap count as narrow.
+		const content = doc.querySelector("#extra-columns-export > vbox");
+		const naturalWidths = () => [...content.children, dialog.getButton("accept").parentElement]
+			.filter((part) => part.getBoundingClientRect().height > 0)
+			.map((part) => {
+				const saved = part.style.width;
+				part.style.width = "max-content";
+				const width = part.getBoundingClientRect().width;
+				part.style.width = saved;
+				return { name: part.id || part.className || part.localName, width };
+			})
+			.sort((a, b) => b.width - a.width);
+		const checkWidth = (name) => {
+			const widths = naturalWidths();
+			const margins = win.innerWidth - content.getBoundingClientRect().width;
+			const needed = Math.max(widths[0].width + margins, parseFloat(win.getComputedStyle(dialog).minWidth) || 0);
+			checkThat(name, win.innerWidth <= needed + 30,
+				`the window is ${win.innerWidth} px wide but needs about ${Math.round(needed)} px. Widest parts: `
+				+ widths.slice(0, 4).map((part) => `${part.name} ${Math.round(part.width)} px`).join(", "));
+		};
+		checkWidth("export dialog: no wider than it needs to be");
+
 		// The combined column editor
 		const combinedRows = () => rows().filter((row) => row.dataset.columnId.startsWith("combined:"));
 		const before = combinedRows().length;
@@ -363,6 +410,14 @@ async function exportDialogChecks(items) {
 		const editor = byID("extra-columns-export-editor");
 		checkThat("combined editor: opens", await waitFor(() => !editor.hidden, 2000), "the editor stayed hidden");
 		check("combined editor: adds a ticked row", combinedRows().length, before + 1);
+		const help = byID("extra-columns-export-combined-help");
+		const helpBox = help.getBoundingClientRect();
+		checkThat("combined editor: help text wraps rather than widening the window",
+			helpBox.height > 2 * parseFloat(win.getComputedStyle(help).fontSize),
+			`the help text is on one line, ${Math.round(helpBox.width)} px wide`);
+		checkThat("combined editor: fits the dialog's width", editor.scrollWidth <= editor.clientWidth + 1,
+			`its contents are ${editor.scrollWidth} px wide in ${editor.clientWidth} px`);
+		checkWidth("combined editor: the dialog is no wider than it needs to be");
 
 		const template = byID("extra-columns-export-combined-template");
 		const status = byID("extra-columns-export-combined-status");
@@ -385,6 +440,28 @@ async function exportDialogChecks(items) {
 
 		byID("extra-columns-export-combined-remove").doCommand();
 		check("combined editor: remove closes it and drops the row", [editor.hidden, combinedRows().length], [true, before]);
+
+		// Saved layouts
+		const layoutMenu = byID("extra-columns-export-layout");
+		const layoutItem = [...layoutMenu.menupopup.children].find((item) => item.value === testLayout.name);
+		checkThat("layouts: menu lists saved layouts", !!layoutItem && !layoutMenu.disabled,
+			`menu entries: ${[...layoutMenu.menupopup.children].map((item) => item.label).join(", ")}`);
+		check("layouts: nothing chosen at first", [layoutMenu.value, byID("extra-columns-export-layout-delete").disabled],
+			["", true]);
+		if (layoutItem) {
+			const ticked = () => rows().filter((row) => row.querySelector("input").checked).map((row) => row.dataset.columnId);
+			layoutItem.doCommand();
+			check("layouts: choosing one sets the format and columns",
+				[byID("extra-columns-export-format").value, ticked()], [testLayout.format, testLayout.columnIDs]);
+			check("layouts: the menu shows the chosen one, which can be deleted",
+				[layoutMenu.value, byID("extra-columns-export-layout-delete").disabled], [testLayout.name, false]);
+			check("layouts: choosing keeps the menu's entries", layoutItem.isConnected, true);
+
+			// Untick a column, then choose the same layout again.
+			rows().find((row) => row.dataset.columnId === "zotero:title").querySelector("input").click();
+			layoutItem.doCommand();
+			check("layouts: choosing the shown one again puts its columns back", ticked(), testLayout.columnIDs);
+		}
 	}
 	catch (e) {
 		checkThat("export dialog: checks run without errors", false, `${e}\n${e.stack}`);
@@ -402,6 +479,27 @@ async function exportDialogChecks(items) {
 	}
 }
 
+/** Whether the dialog's address leads to a file that can be read, for when it doesn't open. */
+async function dialogFileDiagnosis() {
+	const url = "chrome://extra-columns/content/export.xhtml";
+	let resolved;
+	try {
+		resolved = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
+			.getService(Components.interfaces.nsIChromeRegistry)
+			.convertChromeURL(Services.io.newURI(url)).spec;
+	}
+	catch (e) {
+		return `${url} isn't registered: ${e}`;
+	}
+	try {
+		const text = await Zotero.File.getContentsFromURLAsync(url);
+		return `${url} is ${resolved}, which can be read (${text.length} characters)`;
+	}
+	catch (e) {
+		return `${url} is ${resolved}, which can't be read: ${e}`;
+	}
+}
+
 /** The columns the dialog offers: your real columns, not the test's made-up ones. */
 function exportColumnsForDialog() {
 	const skipped = new Set(api.getSkippedFieldIDs());
@@ -412,5 +510,6 @@ function exportColumnsForDialog() {
 const failed = results.filter((line) => line.startsWith("FAIL")).length;
 const passed = results.filter((line) => line.startsWith("PASS")).length;
 const skipped = results.length - failed - passed;
-return `${passed} of ${passed + failed} checks passed${failed ? `, ${failed} failed` : ""}`
+return `${api.version ? `Extra Columns ${api.version}: ` : ""}`
+	+ `${passed} of ${passed + failed} checks passed${failed ? `, ${failed} failed` : ""}`
 	+ `${skipped ? `, ${skipped} skipped` : ""}\n\n${results.join("\n")}`;

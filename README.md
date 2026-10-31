@@ -105,6 +105,15 @@ Examples:
 
 The dialog shows what the template gives for the first item, or what's wrong with it. A ticked combined column with a problem stops the export until it's fixed or unticked. Combined columns are remembered on this computer.
 
+### Saved layouts
+
+If you export more than one kind of table, save each one's setup as a layout. Set the format and tick the columns in order, then click **Save Layout...** and give it a name. Later, choose the name from **Layout** to get the same format and columns back.
+
+- To update a layout, choose it, make your changes, click **Save Layout...** and keep the name.
+- A layout stores which columns are ticked, not copies of them. Combined columns are shared, so editing one changes it in every layout that uses it. Removing one removes it from those layouts.
+- **Delete** removes the chosen layout. Its combined columns are kept.
+- Layouts are stored on this computer.
+
 ## Setting up another computer
 
 Values sync through Extra, but the list of columns is stored on each computer.

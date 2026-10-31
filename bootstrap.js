@@ -87,6 +87,10 @@ function shutdown(data, reason) {
 		chromeHandle.destruct();
 		chromeHandle = null;
 	}
+	// Without this, a new version installed without restarting Zotero can be
+	// served the old version's cached dialog files, or none at all.
+	Services.obs.notifyObservers(null, "startupcache-invalidate");
+	Services.obs.notifyObservers(null, "chrome-flush-caches");
 	delete Zotero.ExtraColumns;
 	ExtraFields = FieldConfig = ItemData = Columns = InfoRows = Detect = ExportFormats = ExportTemplate = ExportTable = ExtraColumns = undefined;
 }

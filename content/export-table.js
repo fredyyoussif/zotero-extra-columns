@@ -419,7 +419,34 @@ var ExportTable = (function () {
 		return clean;
 	}
 
-	/** The format and columns used last time, which can be null, and the combined columns. */
+	/** Saved layouts, {name, format, columnIDs}, dropping malformed entries and repeated names. */
+	function cleanLayouts(list) {
+		if (!Array.isArray(list)) {
+			return [];
+		}
+		const seen = new Set();
+		const clean = [];
+		for (const entry of list) {
+			const name = String(entry?.name ?? "").trim();
+			if (!name || seen.has(name) || !Array.isArray(entry.columnIDs)) {
+				continue;
+			}
+			seen.add(name);
+			clean.push({ name, format: String(entry.format ?? ""), columnIDs: entry.columnIDs.map(String) });
+		}
+		return clean;
+	}
+
+	/** The layouts with `layout` added, or in place of the one with the same name. */
+	function putLayout(layouts, layout) {
+		const index = layouts.findIndex((saved) => saved.name === layout.name);
+		return index < 0 ? [...layouts, layout] : layouts.map((saved, i) => (i === index ? layout : saved));
+	}
+
+	/**
+	 * The format and columns used last time and the layout they came from, which
+	 * can be null, and the combined columns and saved layouts.
+	 */
 	function loadSettings() {
 		let parsed = null;
 		try {
@@ -432,6 +459,8 @@ var ExportTable = (function () {
 			format: typeof parsed?.format === "string" ? parsed.format : null,
 			columnIDs: Array.isArray(parsed?.columnIDs) ? parsed.columnIDs.map(String) : null,
 			combined: cleanCombined(parsed?.combined),
+			layout: typeof parsed?.layout === "string" ? parsed.layout : null,
+			layouts: cleanLayouts(parsed?.layouts),
 		};
 	}
 
@@ -451,6 +480,8 @@ var ExportTable = (function () {
 		rows,
 		extraCitationKey,
 		generatedCitationKey,
+		cleanLayouts,
+		putLayout,
 		loadSettings,
 		saveSettings,
 	};

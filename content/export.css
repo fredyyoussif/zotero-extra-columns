@@ -41,6 +41,16 @@
 	height: 12em;
 }
 
+/*
+ * These take the width the rest of the dialog sets, and their text wraps,
+ * rather than widening the window to fit it on one line.
+ */
+#extra-columns-export-editor,
+#extra-columns-export-invalid,
+#extra-columns-export-skipped {
+	contain: inline-size;
+}
+
 #extra-columns-export-editor {
 	margin-block: 4px;
 	padding: 6px 8px;
@@ -55,13 +65,23 @@
 
 .extra-columns-export-editor-fields {
 	display: grid;
-	grid-template-columns: auto 1fr;
+	grid-template-columns: auto minmax(0, 1fr);
 	align-items: center;
 	gap: 4px 8px;
 }
 
+.extra-columns-export-editor-fields input {
+	min-width: 0;
+}
+
 #extra-columns-export-combined-template {
 	font-family: monospace;
+}
+
+/* The menu is as wide as its longest field name; let it shrink instead. */
+#extra-columns-export-insert {
+	flex: 0 1 auto;
+	min-width: 0;
 }
 
 #extra-columns-export-editor p {
