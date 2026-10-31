@@ -1,12 +1,13 @@
 /*
  * The columns and cell values for Export as Table, and the choices it remembers.
  *
- * A column id is "field:<field id>" for one of this plugin's columns, or
- * "zotero:<key>" for one of Zotero's. Zotero's keys match the item list's data
- * keys, so the item list's current columns can be picked up.
+ * A column id is "field:<field id>" for one of this plugin's columns,
+ * "zotero:<key>" for one of Zotero's, or "combined:<id>" for a combined column
+ * built from a template. Zotero's keys match the item list's data keys, so the
+ * item list's current columns can be picked up.
  */
 
-/* global Zotero, ItemData, Columns */
+/* global Zotero, ItemData, Columns, ExportTemplate */
 
 var ExportTable = (function () {
 	"use strict";
@@ -61,6 +62,9 @@ var ExportTable = (function () {
 	];
 	const DEFAULT_ZOTERO_KEYS = ["title", "firstCreator", "year"];
 
+	// Only for templates: the bare citation key, for writing "@{citekey}".
+	const CITEKEY_COLUMN = { id: "zotero:citekey", key: "citekey", align: "start", latex: false };
+
 	function zoteroLabel(column) {
 		try {
 			return Zotero.getString(column.string);
@@ -90,6 +94,66 @@ var ExportTable = (function () {
 			key: column.key,
 		}));
 		return [...custom, ...zotero];
+	}
+
+	/**
+	 * The columns a template can name, by normalised name. Keys come before
+	 * labels, and this plugin's columns before Zotero's, so the first match wins.
+	 * @param {object[]} columns - From availableColumns(), with labels filled in.
+	 */
+	function templateSources(columns) {
+		const sources = new Map();
+		const add = (name, column) => {
+			const normalized = ExportTemplate.normalizeName(name);
+			if (normalized && !sources.has(normalized)) {
+				sources.set(normalized, column);
+			}
+		};
+		for (const column of columns) {
+			add(column.field ? column.field.key : column.key, column);
+		}
+		add(CITEKEY_COLUMN.key, CITEKEY_COLUMN);
+		for (const column of columns) {
+			add(column.label, column);
+		}
+		return sources;
+	}
+
+	/**
+	 * A column built from a saved {id, label, template}. When the template
+	 * can't be used, `combined.error` holds an error code, and the field name
+	 * for "unknown-field".
+	 * @param {Map} sources - From templateSources().
+	 */
+	function combinedColumn(definition, sources) {
+		const { nodes, error } = ExportTemplate.parse(definition.template);
+		let problem = error ? { code: error } : null;
+		const columnsByName = new Map();
+		for (const name of ExportTemplate.fieldNames(nodes)) {
+			const source = sources.get(ExportTemplate.normalizeName(name));
+			if (!source) {
+				problem = problem || { code: "unknown-field", name };
+				continue;
+			}
+			columnsByName.set(name, source);
+		}
+		return {
+			id: "combined:" + definition.id,
+			label: definition.label,
+			align: "start",
+			// Cells are escaped while they're built, so the LaTeX format leaves them as they are.
+			latex: true,
+			combined: { definition, nodes, columnsByName, error: problem },
+		};
+	}
+
+	function newCombinedID(definitions) {
+		const used = new Set(definitions.map((definition) => definition.id));
+		let id;
+		do {
+			id = Zotero.Utilities.randomString(8);
+		} while (used.has(id));
+		return id;
 	}
 
 	function defaultColumnIDs(fields) {
@@ -284,6 +348,8 @@ var ExportTable = (function () {
 				const key = exportCitationKey(item, exportState);
 				return key ? `\\cite{${key}}` : "";
 			}
+			case "citekey":
+				return exportCitationKey(item, exportState);
 			case "accessDate":
 			case "dateAdded":
 			case "dateModified":
@@ -293,11 +359,31 @@ var ExportTable = (function () {
 		}
 	}
 
+	/** A combined column's cell. Values from `latex` columns aren't escaped. */
+	function combinedValue(item, combined, exportState) {
+		if (combined.error) {
+			return "";
+		}
+		const { escape } = exportState;
+		return ExportTemplate.render(combined.nodes, (name) => {
+			const source = combined.columnsByName.get(name);
+			const value = cellValue(item, source, exportState);
+			return source.latex ? value : escape(value);
+		}, escape);
+	}
+
 	function cellValue(item, column, exportState) {
 		try {
-			const value = column.field
-				? ItemData.readValue(item, column.field)
-				: zoteroValue(item, column.key, exportState);
+			let value;
+			if (column.combined) {
+				value = combinedValue(item, column.combined, exportState);
+			}
+			else if (column.field) {
+				value = ItemData.readValue(item, column.field);
+			}
+			else {
+				value = zoteroValue(item, column.key, exportState);
+			}
 			return String(value ?? "");
 		}
 		catch (e) {
@@ -306,13 +392,34 @@ var ExportTable = (function () {
 		}
 	}
 
-	/** One array of cell text per item, in column order. */
-	function rows(items, columns) {
-		const exportState = { citationKeys: new Set(), keysByItem: new Map() };
+	/**
+	 * One array of cell text per item, in column order.
+	 * @param {(text: string) => string} [escape] - The format's escape, used for combined columns.
+	 */
+	function rows(items, columns, escape = (text) => text) {
+		const exportState = { citationKeys: new Set(), keysByItem: new Map(), escape };
 		return items.map((item) => columns.map((column) => cellValue(item, column, exportState)));
 	}
 
-	/** The format and columns used last time. Either can be null. */
+	/** Saved combined columns, dropping malformed or duplicate entries. */
+	function cleanCombined(list) {
+		if (!Array.isArray(list)) {
+			return [];
+		}
+		const seen = new Set();
+		const clean = [];
+		for (const entry of list) {
+			const id = String(entry?.id ?? "");
+			if (!id || seen.has(id)) {
+				continue;
+			}
+			seen.add(id);
+			clean.push({ id, label: String(entry.label ?? ""), template: String(entry.template ?? "") });
+		}
+		return clean;
+	}
+
+	/** The format and columns used last time, which can be null, and the combined columns. */
 	function loadSettings() {
 		let parsed = null;
 		try {
@@ -324,15 +431,20 @@ var ExportTable = (function () {
 		return {
 			format: typeof parsed?.format === "string" ? parsed.format : null,
 			columnIDs: Array.isArray(parsed?.columnIDs) ? parsed.columnIDs.map(String) : null,
+			combined: cleanCombined(parsed?.combined),
 		};
 	}
 
-	function saveSettings({ format, columnIDs }) {
-		Zotero.Prefs.set(PREF, JSON.stringify({ format, columnIDs }), true);
+	/** Saves the settings given, keeping the others. */
+	function saveSettings(changes) {
+		Zotero.Prefs.set(PREF, JSON.stringify({ ...loadSettings(), ...changes }), true);
 	}
 
 	return {
 		availableColumns,
+		templateSources,
+		combinedColumn,
+		newCombinedID,
 		defaultColumnIDs,
 		itemListColumnIDs,
 		exportableItems,

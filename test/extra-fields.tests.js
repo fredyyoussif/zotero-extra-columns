@@ -1,16 +1,23 @@
-// Tests for Extra Columns' Extra-field parsing and number sorting.
+// Tests for Extra Columns.
 //
 // How to run:
 //   1. Install and enable the plugin.
 //   2. In Zotero, open Tools > Developer > Run JavaScript.
 //   3. Tick "Run as async function", paste this whole file, and click Run.
 // The result pane lists every check, with a summary on the first line.
-// These tests only read; they don't change any items or settings.
+// These tests don't change any items. The Export as Table checks open the
+// dialog with up to three of the selected items (or the first items in My
+// Library), and put back the export settings they change.
+//
+// test/run_offline.py also runs this file outside Zotero, with only the
+// modules that don't need Zotero. It sets api.offline, and the checks that
+// need Zotero are skipped.
 
 const api = Zotero.ExtraColumns;
 if (!api) {
 	return "Extra Columns isn't running. Enable it in Tools > Plugins first.";
 }
+const offline = api.offline === true;
 const EF = api.ExtraFields;
 const results = [];
 
@@ -19,6 +26,15 @@ function check(name, actual, expected) {
 	results.push(pass
 		? `PASS  ${name}`
 		: `FAIL  ${name}\n      expected ${JSON.stringify(expected)}\n      got      ${JSON.stringify(actual)}`);
+}
+
+/** For checks whose failure is best explained in words. */
+function checkThat(name, pass, explanation) {
+	results.push(pass ? `PASS  ${name}` : `FAIL  ${name}\n      ${explanation}`);
+}
+
+function skip(name, reason) {
+	results.push(`SKIP  ${name}: ${reason}`);
 }
 
 // Key normalisation matches Zotero's
@@ -97,22 +113,25 @@ function sortWith(compare) {
 		.map((entry) => entry.value);
 }
 
-for (const numeric of [true, false]) {
-	const collator = new Intl.Collator("en", { numeric, sensitivity: "base" });
-	check(`number sort order, natural sorting ${numeric ? "on" : "off"}`,
-		sortWith((a, b) => collator.compare(a, b)), expectedOrder);
-}
-const zoteroCollation = Zotero.getLocaleCollation();
-check("number sort order, Zotero's current collation",
-	sortWith((a, b) => zoteroCollation.compareString(1, a, b)), expectedOrder);
+// Collation needs Intl and Zotero, so these only run in Zotero.
+if (!offline) {
+	for (const numeric of [true, false]) {
+		const collator = new Intl.Collator("en", { numeric, sensitivity: "base" });
+		check(`number sort order, natural sorting ${numeric ? "on" : "off"}`,
+			sortWith((a, b) => collator.compare(a, b)), expectedOrder);
+	}
+	const zoteroCollation = Zotero.getLocaleCollation();
+	check("number sort order, Zotero's current collation",
+		sortWith((a, b) => zoteroCollation.compareString(1, a, b)), expectedOrder);
 
-// Reserved keys (asks Zotero's own Extra parser)
-check("reserved: Archive is a Zotero field", api.FieldConfig.isReservedKey("Archive"), true);
-check("reserved: Language is a Zotero field", api.FieldConfig.isReservedKey("Language"), true);
-check("reserved: Editor is a creator type", api.FieldConfig.isReservedKey("Editor"), true);
-check("reserved: type", api.FieldConfig.isReservedKey("type"), true);
-check("not reserved: Reading Status", api.FieldConfig.isReservedKey("Reading Status"), false);
-check("not reserved: My Rating", api.FieldConfig.isReservedKey("My Rating"), false);
+	// Reserved keys (asks Zotero's own Extra parser)
+	check("reserved: Archive is a Zotero field", api.FieldConfig.isReservedKey("Archive"), true);
+	check("reserved: Language is a Zotero field", api.FieldConfig.isReservedKey("Language"), true);
+	check("reserved: Editor is a creator type", api.FieldConfig.isReservedKey("Editor"), true);
+	check("reserved: type", api.FieldConfig.isReservedKey("type"), true);
+	check("not reserved: Reading Status", api.FieldConfig.isReservedKey("Reading Status"), false);
+	check("not reserved: My Rating", api.FieldConfig.isReservedKey("My Rating"), false);
+}
 
 // Export as Table: Markdown output
 const XF = api.ExportFormats;
@@ -148,6 +167,41 @@ check("csv table",
 	XF.get("csv").serialize([{ label: "Title" }, { label: "Rating" }], [["A, B", "4"], ["C", ""]]),
 	"Title,Rating\r\n\"A, B\",4\r\nC,\r\n");
 
+check("latex escape keeps spacing", XF.latexEscape(" 5% "), " 5\\% ");
+
+// Export as Table: combined column templates
+const XT = api.ExportTemplate;
+const sample = { citekey: "smith_2020", year: "2020", Disorder: "PD", Function: "", latex: "\\cite{x}" };
+const fill = (template, values = sample, escape) =>
+	XT.render(XT.parse(template).nodes, (name) => values[name] ?? "", escape);
+check("template: fields and text", fill("@{citekey} ({year})"), "@smith_2020 (2020)");
+check("template: field names are trimmed", fill("{ year }"), "2020");
+check("template: optional section shown", fill("@{citekey}[ ({year})]"), "@smith_2020 (2020)");
+check("template: optional section left out", fill("@{citekey}[ ({year})]", { citekey: "a" }), "@a");
+check("template: separator kept between shown sections",
+	fill("[D: {Disorder}]; [F: {Disorder}]"), "D: PD; F: PD");
+check("template: separator dropped when the second is empty",
+	fill("[D: {Disorder}]; [F: {Function}]"), "D: PD");
+check("template: separator dropped when the first is empty",
+	fill("[F: {Function}]; [D: {Disorder}]"), "D: PD");
+check("template: middle section left out",
+	fill("[{year}], [{Function}]; [{Disorder}]"), "2020; PD");
+check("template: all sections empty", fill("[D: {Function}]; [F: {Function}]"), "");
+check("template: section needs every field in it", fill("[{year}-{Function}]"), "");
+check("template: nested section", fill("[Notes: {year}[ and {Function}]]"), "Notes: 2020");
+check("template: section without fields is left out", fill("a[b]c"), "ac");
+check("template: escapes", fill("\\{x\\} \\[y\\] a\\\\b \\n"), "{x} [y] a\\b \\n");
+check("template: escape applies to text, not values",
+	fill("{latex} 5%", sample, XF.latexEscape), "\\cite{x} 5\\%");
+check("template: field names in order", XT.fieldNames(XT.parse("{a}[{b} {a}]{c}").nodes), ["a", "b", "c"]);
+check("template: unclosed brace", XT.parse("{a").error, "unclosed-brace");
+check("template: brace inside a name", XT.parse("{a{b}").error, "unclosed-brace");
+check("template: stray closing brace", XT.parse("a}").error, "unexpected-brace");
+check("template: unclosed bracket", XT.parse("[{a}").error, "unclosed-bracket");
+check("template: stray closing bracket", XT.parse("{a}]").error, "unexpected-bracket");
+check("template: empty name", XT.parse("{ }").error, "empty-name");
+check("template: names ignore case and punctuation", XT.normalizeName("Brain Function(s)"), "brainfunctions");
+
 // Export as Table: columns
 const exportFields = [{ id: "abc", label: "Reading status", key: "Reading Status", type: "text" },
 	{ id: "def", label: "Rating", key: "Rating", type: "number" }];
@@ -161,36 +215,202 @@ check("export columns: citation tag is offered",
 	exportColumns.some((column) => column.id === "zotero:citationTag"), true);
 check("export columns: LaTeX citation is offered and not escaped",
 	exportColumns.find((column) => column.id === "zotero:latexCitation")?.latex, true);
+// Labels for columns with an l10nID are filled in by the dialog.
+const exportSources = api.ExportTable.templateSources(
+	exportColumns.map((column) => ({ ...column, label: column.label || column.key })));
+const combinedColumn = (template) =>
+	api.ExportTable.combinedColumn({ id: "t", label: "T", template }, exportSources).combined;
+check("combined column: id",
+	api.ExportTable.combinedColumn({ id: "t", label: "T", template: "" }, exportSources).id, "combined:t");
+check("combined column: finds fields by key, label and Zotero key",
+	[...combinedColumn("{reading_status} {Rating} {YEAR} {citekey}").columnsByName.values()].map((column) => column.id),
+	["field:abc", "field:def", "zotero:year", "zotero:citekey"]);
+check("combined column: unknown field",
+	combinedColumn("{year} {nope}").error, { code: "unknown-field", name: "nope" });
+check("combined column: syntax error", combinedColumn("{year").error, { code: "unclosed-brace" });
 // Export as Table: citation keys, matching Zotero's BibTeX export
 const ET = api.ExportTable;
 check("cite key from Extra", ET.extraCitationKey("Note\n citation key : abc \nCitation Key: def"), "abc");
 check("cite key from Extra skips empty", ET.extraCitationKey("Citation Key:\nCitation Key: x"), "x");
 check("cite key from Extra missing", ET.extraCitationKey("PMID: 1"), "");
-const recent = "2021-01-01 00:00:00";
-const keysA = new Set();
-check("built cite key",
-	ET.generatedCitationKey({ lastName: "Smith", title: "The Art of War", date: "2020-05-01", dateAdded: recent }, keysA),
-	"smith_art_2020");
-check("built cite key, duplicate gets a suffix",
-	ET.generatedCitationKey({ lastName: "Smith", title: "Art and War", date: "May 2020", dateAdded: recent }, keysA),
-	"smith_art_2020-1");
-check("built cite key, nothing to use",
-	ET.generatedCitationKey({ lastName: "", title: "", date: "", dateAdded: recent }, new Set()),
-	"noauthor_notitle_nodate");
-// BibTeX.js leaves the title word empty when markup or a skipped word comes first.
-check("built cite key, two-word surname and markup",
-	ET.generatedCitationKey({ lastName: "Van Dyke", title: "<i>Of</i> Mice", date: "1999", dateAdded: recent }, new Set()),
-	"van_dyke__1999");
-check("built cite key, simple characters since 2020",
-	ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: recent }, new Set()),
-	"lee_c_2010");
-check("built cite key, legacy characters before 2020",
-	ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: "2015-06-01 00:00:00" }, new Set()),
-	"lee_c++_2010");
+// Built keys use Zotero's date parser and preferences.
+if (!offline) {
+	const recent = "2021-01-01 00:00:00";
+	const keysA = new Set();
+	check("built cite key",
+		ET.generatedCitationKey({ lastName: "Smith", title: "The Art of War", date: "2020-05-01", dateAdded: recent }, keysA),
+		"smith_art_2020");
+	check("built cite key, duplicate gets a suffix",
+		ET.generatedCitationKey({ lastName: "Smith", title: "Art and War", date: "May 2020", dateAdded: recent }, keysA),
+		"smith_art_2020-1");
+	check("built cite key, nothing to use",
+		ET.generatedCitationKey({ lastName: "", title: "", date: "", dateAdded: recent }, new Set()),
+		"noauthor_notitle_nodate");
+	// BibTeX.js leaves the title word empty when markup or a skipped word comes first.
+	check("built cite key, two-word surname and markup",
+		ET.generatedCitationKey({ lastName: "Van Dyke", title: "<i>Of</i> Mice", date: "1999", dateAdded: recent }, new Set()),
+		"van_dyke__1999");
+	check("built cite key, simple characters since 2020",
+		ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: recent }, new Set()),
+		"lee_c_2010");
+	check("built cite key, legacy characters before 2020",
+		ET.generatedCitationKey({ lastName: "Lee", title: "C++ guide", date: "2010", dateAdded: "2015-06-01 00:00:00" }, new Set()),
+		"lee_c++_2010");
+}
 
 check("export columns: ids are unique",
 	new Set(exportColumns.map((column) => column.id)).size, exportColumns.length);
 
+// Export as Table: real items and the real dialog
+if (!offline) {
+	const testItems = await exportTestItems();
+	if (!testItems.length) {
+		skip("export with real items", "there are no regular items in My Library");
+	}
+	else {
+		await realItemChecks(testItems);
+		await exportDialogChecks(testItems);
+	}
+}
+
+/** Up to three regular items: the selected ones, or else the first in My Library. */
+async function exportTestItems() {
+	const selected = Zotero.getActiveZoteroPane()?.getSelectedItems() || [];
+	let found = ET.exportableItems(selected);
+	if (!found.length) {
+		found = ET.exportableItems(await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, true));
+	}
+	return found.slice(0, 3);
+}
+
+async function realItemChecks(items) {
+	const byKey = (key) => exportColumns.find((column) => column.id === "zotero:" + key);
+	check("real items: a combined column gives the same as the plain column",
+		ET.rows(items, [ET.combinedColumn({ id: "y", label: "Y", template: "{year}" }, exportSources)]),
+		ET.rows(items, [byKey("year")]));
+	check("real items: both citation columns use the same key",
+		ET.rows(items, [byKey("citationTag"), byKey("latexCitation")])
+			.map(([tag, latex]) => latex === `\\cite{${tag.slice(1)}}`),
+		items.map(() => true));
+	check("real items: LaTeX escapes a combined column's text",
+		ET.rows(items.slice(0, 1), [ET.combinedColumn({ id: "p", label: "P", template: "50% & {latexCitation}" },
+			exportSources)], api.ExportFormats.get("latex").escape)[0][0].startsWith("50\\% \\& \\cite{"),
+		true);
+}
+
+/**
+ * Opens Export as Table as the item menu does, then checks that it set itself
+ * up, is laid out and translated, and that the combined column editor works.
+ */
+async function exportDialogChecks(items) {
+	const PREF = "extensions.extra-columns.export";
+	const savedPref = Zotero.Prefs.get(PREF, true);
+	const win = Zotero.getMainWindow().openDialog("chrome://extra-columns/content/export.xhtml", "",
+		"chrome,dialog,resizable", { items, skippedCount: 0 });
+	const waitFor = async (condition, ms = 5000) => {
+		const deadline = Date.now() + ms;
+		while (!condition() && Date.now() < deadline) {
+			await Zotero.Promise.delay(50);
+		}
+		return condition();
+	};
+	try {
+		const scriptLoaded = await waitFor(() => win.closed || win.ExtraColumnsExport?.ready);
+		checkThat("export dialog: script loads", scriptLoaded && !win.closed,
+			`window ${win.closed ? "closed" : "open"}, document ${win.document?.readyState}, `
+			+ `script ${typeof win.ExtraColumnsExport}, location ${win.location?.href}`);
+		if (!scriptLoaded || win.closed) {
+			return;
+		}
+		const outcome = await Promise.race([
+			win.ExtraColumnsExport.ready.then(() => "ready", (e) => `failed: ${e}\n${e?.stack || ""}`),
+			Zotero.Promise.delay(10000).then(() => "still loading after 10 seconds"),
+		]);
+		checkThat("export dialog: sets itself up", outcome === "ready", outcome);
+		if (outcome !== "ready") {
+			return;
+		}
+
+		const doc = win.document;
+		const byID = (id) => doc.getElementById(id);
+		const dialog = byID("extra-columns-export");
+		await doc.l10n.translateElements([...doc.querySelectorAll("[data-l10n-id]")]);
+
+		const box = byID("extra-columns-export-columns").getBoundingClientRect();
+		checkThat("export dialog: column list is laid out", box.width > 0 && box.height > 0,
+			`the column list is ${box.width} × ${box.height}`);
+		const rows = () => [...doc.querySelectorAll(".extra-columns-export-row")];
+		checkThat("export dialog: lists columns", rows().length >= exportColumns.length - exportFields.length,
+			`${rows().length} rows`);
+		const unlabelled = rows().filter((row) => !row.querySelector("label").textContent.trim());
+		checkThat("export dialog: every column has a name", !unlabelled.length,
+			`no name: ${unlabelled.map((row) => row.dataset.columnId).join(", ")}`);
+		const formats = [...byID("extra-columns-export-format").menupopup.children].map((item) => item.label);
+		check("export dialog: format menu", formats.length === api.ExportFormats.list().length && formats.every(Boolean), true);
+		checkThat("export dialog: buttons are translated",
+			!!dialog.getButton("accept").label && !!byID("extra-columns-export-add-combined").label,
+			`Save "${dialog.getButton("accept").label}", Add combined column "${byID("extra-columns-export-add-combined").label}"`);
+		checkThat("export dialog: summary is translated", !!byID("extra-columns-export-summary").textContent.trim(),
+			"the item count line is empty");
+		checkThat("export dialog: insert field menu lists fields",
+			byID("extra-columns-export-insert").menupopup.children.length > exportColumns.length - exportFields.length,
+			`${byID("extra-columns-export-insert").menupopup.children.length} entries`);
+
+		// The combined column editor
+		const combinedRows = () => rows().filter((row) => row.dataset.columnId.startsWith("combined:"));
+		const before = combinedRows().length;
+		byID("extra-columns-export-add-combined").doCommand();
+		const editor = byID("extra-columns-export-editor");
+		checkThat("combined editor: opens", await waitFor(() => !editor.hidden, 2000), "the editor stayed hidden");
+		check("combined editor: adds a ticked row", combinedRows().length, before + 1);
+
+		const template = byID("extra-columns-export-combined-template");
+		const status = byID("extra-columns-export-combined-status");
+		const type = async (text) => {
+			template.value = text;
+			template.dispatchEvent(new win.Event("input", { bubbles: true }));
+			await doc.l10n.translateElements([status, byID("extra-columns-export-invalid")]);
+		};
+		await type("{year} {no such field}");
+		checkThat("combined editor: names an unknown field", status.textContent.includes("no such field"),
+			`status says "${status.textContent}"`);
+		check("combined editor: a broken template stops the export",
+			[dialog.getButton("accept").disabled, byID("extra-columns-export-invalid").hidden], [true, false]);
+		await type("@{citekey}[ ({year})]");
+		const expected = ET.rows(items.slice(0, 1), [ET.combinedColumn(
+			{ id: "x", label: "X", template: "@{citekey}[ ({year})]" }, ET.templateSources(exportColumnsForDialog()))])[0][0];
+		checkThat("combined editor: previews the first item", status.textContent.includes(expected),
+			`status says "${status.textContent}", expected it to include "${expected}"`);
+		check("combined editor: a working template allows the export", byID("extra-columns-export-invalid").hidden, true);
+
+		byID("extra-columns-export-combined-remove").doCommand();
+		check("combined editor: remove closes it and drops the row", [editor.hidden, combinedRows().length], [true, before]);
+	}
+	catch (e) {
+		checkThat("export dialog: checks run without errors", false, `${e}\n${e.stack}`);
+	}
+	finally {
+		if (!win.closed) {
+			win.close();
+		}
+		if (savedPref === undefined) {
+			Zotero.Prefs.clear(PREF, true);
+		}
+		else {
+			Zotero.Prefs.set(PREF, savedPref, true);
+		}
+	}
+}
+
+/** The columns the dialog offers: your real columns, not the test's made-up ones. */
+function exportColumnsForDialog() {
+	const skipped = new Set(api.getSkippedFieldIDs());
+	return ET.availableColumns(api.FieldConfig.load().filter((field) => !skipped.has(field.id)))
+		.map((column) => ({ ...column, label: column.label || column.key }));
+}
+
 const failed = results.filter((line) => line.startsWith("FAIL")).length;
-return `${results.length - failed} of ${results.length} checks passed${failed ? `, ${failed} failed` : ""}\n\n`
-	+ results.join("\n");
+const passed = results.filter((line) => line.startsWith("PASS")).length;
+const skipped = results.length - failed - passed;
+return `${passed} of ${passed + failed} checks passed${failed ? `, ${failed} failed` : ""}`
+	+ `${skipped ? `, ${skipped} skipped` : ""}\n\n${results.join("\n")}`;

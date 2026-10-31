@@ -7,7 +7,7 @@
 
 /* global Zotero, Services, Components */
 
-var ExtraFields, FieldConfig, ItemData, Columns, InfoRows, Detect, ExportFormats, ExportTable, ExtraColumns;
+var ExtraFields, FieldConfig, ItemData, Columns, InfoRows, Detect, ExportFormats, ExportTemplate, ExportTable, ExtraColumns;
 
 // Load order matters: later scripts use the objects defined by earlier ones.
 var CONTENT_SCRIPTS = [
@@ -18,6 +18,7 @@ var CONTENT_SCRIPTS = [
 	"info-rows.js",
 	"detect.js",
 	"export-formats.js",
+	"export-template.js",
 	"export-table.js",
 	"main.js",
 ];
@@ -49,6 +50,7 @@ async function startup({ id, version, rootURI }) {
 		ItemData,
 		Detect,
 		ExportFormats,
+		ExportTemplate,
 		ExportTable,
 		getSkippedFieldIDs: () => ExtraColumns.getSkippedFieldIDs(),
 		reconcile: () => ExtraColumns.reconcile(),
@@ -86,7 +88,7 @@ function shutdown(data, reason) {
 		chromeHandle = null;
 	}
 	delete Zotero.ExtraColumns;
-	ExtraFields = FieldConfig = ItemData = Columns = InfoRows = Detect = ExportFormats = ExportTable = ExtraColumns = undefined;
+	ExtraFields = FieldConfig = ItemData = Columns = InfoRows = Detect = ExportFormats = ExportTemplate = ExportTable = ExtraColumns = undefined;
 }
 
 // Field definitions and item data are kept, so reinstalling restores everything.

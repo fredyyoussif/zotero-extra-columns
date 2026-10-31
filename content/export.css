@@ -32,8 +32,49 @@
 }
 
 /* Unticked columns have no position, but keep the row height the same. */
-.extra-columns-export-row.unchosen button {
+.extra-columns-export-row.unchosen :is(.move-up, .move-down) {
 	visibility: hidden;
+}
+
+/* Leave room for the combined column editor without growing the window much. */
+#extra-columns-export.editing #extra-columns-export-columns {
+	height: 12em;
+}
+
+#extra-columns-export-editor {
+	margin-block: 4px;
+	padding: 6px 8px;
+	border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+	border-radius: 4px;
+}
+
+#extra-columns-export-editor h2 {
+	font-size: inherit;
+	margin: 0 0 6px;
+}
+
+.extra-columns-export-editor-fields {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: 4px 8px;
+}
+
+#extra-columns-export-combined-template {
+	font-family: monospace;
+}
+
+#extra-columns-export-editor p {
+	margin-block: 6px;
+}
+
+.extra-columns-export-error {
+	color: var(--accent-red, #d70022);
+}
+
+.extra-columns-export-row.invalid label::after {
+	content: " \26A0";
+	color: var(--accent-red, #d70022);
 }
 
 .extra-columns-export-divider {

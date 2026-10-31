@@ -33,6 +33,17 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "label=$label" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Syntax, locale and id checks, and the tests that don't need Zotero.
+      - name: Offline checks
+        run: |
+          pip install -r test/requirements.txt
+          python test/run_offline.py
+
       - name: Build
         run: bash build.sh "${{ steps.version.outputs.version }}"
 

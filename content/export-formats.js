@@ -48,14 +48,19 @@ var ExportFormats = (function () {
 		"^": "\\textasciicircum{}",
 	};
 
-	/** One line, with LaTeX's special characters escaped so they print as typed. */
+	/** LaTeX's special characters escaped so they print as typed. Spacing is kept. */
+	function latexEscape(text) {
+		return String(text ?? "").replace(/[\\&%$#_{}~^]/g, (char) => LATEX_ESCAPES[char]);
+	}
+
+	/** One line, with LaTeX's special characters escaped. */
 	function latexCell(value) {
-		return oneLine(value).replace(/[\\&%$#_{}~^]/g, (char) => LATEX_ESCAPES[char]);
+		return latexEscape(oneLine(value));
 	}
 
 	/**
 	 * A LaTeX tabular. Cells in a column marked `latex` are already LaTeX, such
-	 * as \cite{key}, so they aren't escaped.
+	 * as \cite{key} or a combined column, so they aren't escaped.
 	 * @param {{label: string, align: "start"|"end", latex?: boolean}[]} columns
 	 * @param {string[][]} rows - One array of cell text per item, in column order.
 	 */
@@ -92,6 +97,8 @@ var ExportFormats = (function () {
 
 	// A format with `bom` gets a byte order mark when saved to a file, because
 	// Excel only reads a CSV file as UTF-8 when it starts with one.
+	// A format with `escape` has combined columns built with it, so the
+	// template's text and values are escaped but \cite{key} values aren't.
 	const FORMATS = [
 		{
 			id: "markdown",
@@ -103,6 +110,7 @@ var ExportFormats = (function () {
 			id: "latex",
 			l10nID: "extra-columns-export-format-latex",
 			extension: "tex",
+			escape: latexEscape,
 			serialize: latexTable,
 		},
 		{
@@ -123,5 +131,5 @@ var ExportFormats = (function () {
 		return FORMATS.find((format) => format.id === id) || FORMATS[0];
 	}
 
-	return { list, get, markdownCell, latexCell, csvCell };
+	return { list, get, markdownCell, latexEscape, latexCell, csvCell };
 })();

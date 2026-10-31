@@ -25,9 +25,31 @@
 		<hbox align="center" class="extra-columns-export-heading">
 			<label id="extra-columns-export-columns-label" data-l10n-id="extra-columns-export-columns-label"/>
 			<spacer flex="1"/>
+			<button id="extra-columns-export-add-combined" data-l10n-id="extra-columns-export-add-combined"/>
 			<button id="extra-columns-export-match" data-l10n-id="extra-columns-export-match"/>
 		</hbox>
 		<html:div id="extra-columns-export-columns" role="group" aria-labelledby="extra-columns-export-columns-label"/>
+		<html:div id="extra-columns-export-editor" role="group" aria-labelledby="extra-columns-export-editor-heading" hidden="hidden">
+			<html:h2 id="extra-columns-export-editor-heading" data-l10n-id="extra-columns-export-editor-heading"/>
+			<html:div class="extra-columns-export-editor-fields">
+				<html:label for="extra-columns-export-combined-name" data-l10n-id="extra-columns-export-combined-name"/>
+				<html:input id="extra-columns-export-combined-name" type="text"/>
+				<html:label for="extra-columns-export-combined-template" data-l10n-id="extra-columns-export-combined-template"/>
+				<html:input id="extra-columns-export-combined-template" type="text" spellcheck="false"
+					aria-describedby="extra-columns-export-combined-status extra-columns-export-combined-help"/>
+			</html:div>
+			<html:p id="extra-columns-export-combined-status" role="status"/>
+			<html:p id="extra-columns-export-combined-help" class="extra-columns-export-note" data-l10n-id="extra-columns-export-combined-help"/>
+			<hbox align="center">
+				<menulist id="extra-columns-export-insert" native="true">
+					<menupopup/>
+				</menulist>
+				<spacer flex="1"/>
+				<button id="extra-columns-export-combined-remove" data-l10n-id="extra-columns-export-combined-remove"/>
+				<button id="extra-columns-export-combined-done" data-l10n-id="extra-columns-export-combined-done"/>
+			</hbox>
+		</html:div>
+		<html:p id="extra-columns-export-invalid" class="extra-columns-export-error" hidden="hidden"/>
 		<html:p id="extra-columns-export-summary"/>
 		<html:p id="extra-columns-export-skipped" class="extra-columns-export-note" hidden="hidden"/>
 	</vbox>

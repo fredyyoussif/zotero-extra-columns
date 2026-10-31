@@ -10,6 +10,7 @@
 | `content/info-rows.js` | Editable rows in the Info section, including batch editing |
 | `content/detect.js` | Finds existing Extra keys for **Detect from library** |
 | `content/export-formats.js` | Output formats for **Export as Table**. To add a format, add an entry to `FORMATS` and a label to the locale file. No Zotero dependencies. |
+| `content/export-template.js` | Parses and fills in combined column templates for **Export as Table**. No Zotero dependencies. |
 | `content/export-table.js` | The columns and cell values for **Export as Table**, and the choices it remembers in `extensions.extra-columns.export` |
 | `content/export.*` | The **Export as Table** dialog, served from `chrome://extra-columns/content/` |
 | `content/main.js` | Registers everything, re-registers when columns change, and adds the item menu entry |
@@ -41,11 +42,36 @@ Zotero checks the `updates.json` on the latest release, through the manifest's `
 
 ## Running the tests
 
-1. Install and enable the plugin.
-2. Open **Tools > Developer > Run JavaScript** and tick **Run as async function**.
-3. Paste the contents of `test/extra-fields.tests.js` and click **Run**.
+There are two kinds of test.
 
-The first line of the result says how many checks passed. The tests only read data. They don't change items or settings.
+### Offline checks
+
+These don't need Zotero, and GitHub Actions runs them before every build. They need Python 3:
+
+```bash
+pip install -r test/requirements.txt
+python test/run_offline.py
+```
+
+They check that:
+
+- every script parses, and the dialogs' XHTML is well formed
+- the locale file parses and has no duplicate messages
+- every localization ID used in the markup and scripts is in the locale file, including one for each template error
+- every `byID("...")` in a dialog's script exists in its XHTML
+
+Then they run `test/extra-fields.tests.js` with the modules that don't need Zotero. Checks that need Zotero are skipped. It exits with an error if anything fails.
+
+### In Zotero
+
+1. Install and enable the plugin.
+2. Select a few items, so the export checks use them. Otherwise they use the first items in My Library.
+3. Open **Tools > Developer > Run JavaScript** and tick **Run as async function**.
+4. Paste the contents of `test/extra-fields.tests.js` and click **Run**.
+
+The first line of the result says how many checks passed. This runs everything the offline checks run, plus checks that need Zotero. It exports real items, and it opens **Export as Table** to check that the dialog sets itself up, is laid out and translated, and that the combined column editor works. The dialog closes itself afterwards. The tests don't change items, and they put back the export settings they change.
+
+Run both after changing the export dialog. The offline checks can't open it.
 
 ## Troubleshooting
 

@@ -85,6 +85,26 @@ The first time, the dialog ticks the columns showing in the item list, in the sa
 - **LaTeX:** the table is a `tabular` you can paste into a `table` environment. Line breaks become spaces. Characters such as `&`, `%`, `_` and `$` are escaped so they print as typed. **Citation (\cite{key})** is left as it is so the citation works.
 - **CSV:** cells holding commas, quotes or line breaks are quoted, and line breaks are kept. Saved files start with a byte order mark so Excel reads accented characters correctly.
 
+### Combined columns
+
+A combined column puts several fields in one cell, for example `@smith_2020 (2020)` or `D: Parkinson's; F: motor control`. Click **Add combined column**, give it a name, and write a template:
+
+| You write | Which gives |
+| --- | --- |
+| `{Field}` | The field's value. Use the field's key or its name, in any case. Zotero's fields use their key, such as `{year}`, `{title}` or `{DOI}`. **Insert field** lists them all. |
+| `{citekey}` | The bare citation key, as used by **Citation (@key)**. |
+| `[ ... ]` | An optional section. It's left out when a field in it is empty. |
+| text between two `[ ]` | A separator. It's only kept when the sections on both sides are shown. |
+| `\{` `\}` `\[` `\]` `\\` | The character itself. |
+
+Examples:
+
+- `@{citekey}[ ({year})]` gives `@smith_2020 (2020)`, or `@smith_2020` when there's no year.
+- `[D: {Disorder}]; [F: {Brain Function}]` gives `D: PD; F: motor`, `D: PD`, `F: motor`, or an empty cell, depending on which fields have a value.
+- `{latexCitation}` gives `\cite{key}` inside a combined column. In LaTeX output, the template's text and other values are escaped, but this one isn't.
+
+The dialog shows what the template gives for the first item, or what's wrong with it. A ticked combined column with a problem stops the export until it's fixed or unticked. Combined columns are remembered on this computer.
+
 ## Setting up another computer
 
 Values sync through Extra, but the list of columns is stored on each computer.
