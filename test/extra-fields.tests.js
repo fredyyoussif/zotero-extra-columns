@@ -325,7 +325,9 @@ async function exportDialogChecks(items) {
 	const PREF = "extensions.extra-columns.export";
 	const savedPref = Zotero.Prefs.get(PREF, true);
 	const testLayout = { name: "Extra Columns test layout", format: "csv", columnIDs: ["zotero:year", "zotero:title"] };
-	ET.saveSettings({ layouts: ET.putLayout(ET.loadSettings().layouts, testLayout), layout: null });
+	// Last choices that no saved layout is likely to match.
+	ET.saveSettings({ layouts: ET.putLayout(ET.loadSettings().layouts, testLayout), layout: null,
+		format: "markdown", columnIDs: ["zotero:dateModified"] });
 	const win = Zotero.getMainWindow().openDialog("chrome://extra-columns/content/export.xhtml", "",
 		"chrome,dialog,resizable", { items, skippedCount: 0 });
 	const waitFor = async (condition, ms = 5000) => {
@@ -443,24 +445,43 @@ async function exportDialogChecks(items) {
 
 		// Saved layouts
 		const layoutMenu = byID("extra-columns-export-layout");
-		const layoutItem = [...layoutMenu.menupopup.children].find((item) => item.value === testLayout.name);
+		const entries = [...layoutMenu.menupopup.children];
+		const layoutItem = entries.find((item) => item.value === testLayout.name);
 		checkThat("layouts: menu lists saved layouts", !!layoutItem && !layoutMenu.disabled,
-			`menu entries: ${[...layoutMenu.menupopup.children].map((item) => item.label).join(", ")}`);
-		check("layouts: nothing chosen at first", [layoutMenu.value, byID("extra-columns-export-layout-delete").disabled],
-			["", true]);
+			`menu entries: ${entries.map((item) => item.label).join(", ")}`);
+		check("layouts: the list holds only saved layouts",
+			entries.filter((item) => !item.hidden).map((item) => item.value), ET.loadSettings().layouts.map((layout) => layout.name));
+		const deleteButton = byID("extra-columns-export-layout-delete");
+		checkThat("layouts: nothing chosen at first",
+			layoutMenu.value === "" && !!layoutMenu.label && deleteButton.disabled,
+			`the menu shows "${layoutMenu.label}", value "${layoutMenu.value}", Delete ${deleteButton.disabled ? "off" : "on"}`);
 		if (layoutItem) {
 			const ticked = () => rows().filter((row) => row.querySelector("input").checked).map((row) => row.dataset.columnId);
+			const titleBox = () => rows().find((row) => row.dataset.columnId === "zotero:title").querySelector("input");
+			const shown = () => [layoutMenu.label, deleteButton.disabled];
+			const changedLabel = (label) => label.includes(testLayout.name) && label !== testLayout.name;
+
 			layoutItem.doCommand();
 			check("layouts: choosing one sets the format and columns",
 				[byID("extra-columns-export-format").value, ticked()], [testLayout.format, testLayout.columnIDs]);
-			check("layouts: the menu shows the chosen one, which can be deleted",
-				[layoutMenu.value, byID("extra-columns-export-layout-delete").disabled], [testLayout.name, false]);
+			check("layouts: the menu shows the chosen one, which can be deleted", shown(), [testLayout.name, false]);
 			check("layouts: choosing keeps the menu's entries", layoutItem.isConnected, true);
 
-			// Untick a column, then choose the same layout again.
-			rows().find((row) => row.dataset.columnId === "zotero:title").querySelector("input").click();
+			titleBox().click();
+			checkThat("layouts: unticking a column marks it changed",
+				changedLabel(layoutMenu.label) && !deleteButton.disabled, `the menu shows "${layoutMenu.label}"`);
+			titleBox().click();
+			check("layouts: undoing the change by hand shows it unchanged", shown(), [testLayout.name, false]);
+
+			const formatMenu = byID("extra-columns-export-format");
+			[...formatMenu.menupopup.children].find((item) => item.value !== testLayout.format).doCommand();
+			checkThat("layouts: changing the format marks it changed", changedLabel(layoutMenu.label),
+				`the menu shows "${layoutMenu.label}"`);
+
+			titleBox().click();
 			layoutItem.doCommand();
-			check("layouts: choosing the shown one again puts its columns back", ticked(), testLayout.columnIDs);
+			check("layouts: choosing the shown one again puts its choices back",
+				[formatMenu.value, ticked(), layoutMenu.label], [testLayout.format, testLayout.columnIDs, testLayout.name]);
 		}
 	}
 	catch (e) {
@@ -479,25 +500,66 @@ async function exportDialogChecks(items) {
 	}
 }
 
-/** Whether the dialog's address leads to a file that can be read, for when it doesn't open. */
+/**
+ * For when the dialog doesn't open: where its address leads, whether the
+ * plugin file on disk is intact, and which ways of reading from it work.
+ * Each read gives up after 3 seconds.
+ */
 async function dialogFileDiagnosis() {
+	const Ci = Components.interfaces;
 	const url = "chrome://extra-columns/content/export.xhtml";
 	let resolved;
 	try {
 		resolved = Components.classes["@mozilla.org/chrome/chrome-registry;1"]
-			.getService(Components.interfaces.nsIChromeRegistry)
+			.getService(Ci.nsIChromeRegistry)
 			.convertChromeURL(Services.io.newURI(url)).spec;
 	}
 	catch (e) {
 		return `${url} isn't registered: ${e}`;
 	}
+
+	// Opens the file afresh, without Zotero's cached copy.
+	let onDisk;
 	try {
-		const text = await Zotero.File.getContentsFromURLAsync(url);
-		return `${url} is ${resolved}, which can be read (${text.length} characters)`;
+		const file = Services.io.newURI(resolved).QueryInterface(Ci.nsIJARURI).JARFile
+			.QueryInterface(Ci.nsIFileURL).file;
+		const reader = Components.classes["@mozilla.org/libjar/zip-reader;1"].createInstance(Ci.nsIZipReader);
+		reader.open(file);
+		try {
+			const size = (entry) => (reader.hasEntry(entry) ? `${reader.getEntry(entry).realSize} bytes` : "missing");
+			onDisk = `${file.fileSize} bytes, changed ${new Date(file.lastModifiedTime).toLocaleString()}; `
+				+ `export.xhtml ${size("content/export.xhtml")}, main.js ${size("content/main.js")}`;
+		}
+		finally {
+			reader.close();
+		}
 	}
 	catch (e) {
-		return `${url} is ${resolved}, which can't be read: ${e}`;
+		onDisk = `can't be opened: ${e}`;
 	}
+
+	const { NetUtil } = ChromeUtils.importESModule("resource://gre/modules/NetUtil.sys.mjs");
+	const read = (address) => Promise.race([
+		new Promise((resolve) => {
+			const channel = NetUtil.newChannel({ uri: address, loadUsingSystemPrincipal: true });
+			NetUtil.asyncFetch(channel, (stream, status) => {
+				if (!Components.isSuccessCode(status)) {
+					resolve(`failed with 0x${(status >>> 0).toString(16)}`);
+					return;
+				}
+				resolve(`read (${stream.available()} bytes)`);
+				stream.close();
+			});
+		}),
+		Zotero.Promise.delay(3000).then(() => "still reading after 3 seconds"),
+	]).catch((e) => `failed: ${e}`);
+
+	return `${url} is ${resolved}`
+		+ `\n      the plugin file on disk: ${onDisk}`
+		+ `\n      the dialog through chrome://: ${await read(url)}`
+		+ `\n      the dialog from the plugin file: ${await read(resolved)}`
+		+ `\n      main.js from the plugin file: ${await read(resolved.replace(/export\.xhtml$/, "main.js"))}`
+		+ `\n      a file of Zotero's own: ${await read("chrome://zotero/content/include.js")}`;
 }
 
 /** The columns the dialog offers: your real columns, not the test's made-up ones. */

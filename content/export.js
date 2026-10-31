@@ -24,11 +24,13 @@ var ExtraColumnsExport = (function () {
 	let columns = [];
 	let chosenIDs = [];
 	let formatLabels = new Map();
-	// Saved layouts, {name, format, columnIDs}, and the name of the one last
-	// chosen or saved here.
+	// Saved layouts, {name, format, columnIDs}, and the name of the one the
+	// current choices come from, which may have been changed since.
 	let layouts = [];
 	let layoutName = null;
-	let layoutPlaceholders = {};
+	// What the menu shows when no layout matches; `changed` has NAME_MARK for the name.
+	let layoutLabels = {};
+	const NAME_MARK = "\uE000";
 
 	function byID(id) {
 		return document.getElementById(id);
@@ -153,11 +155,14 @@ var ExtraColumnsExport = (function () {
 
 	async function initLayouts(settings) {
 		layouts = settings.layouts;
-		const [none, choose] = await document.l10n.formatValues([
+		layoutName = settings.layout;
+		// Formatted once, so the menu can be updated straight after every change.
+		const [none, choose, changed] = await document.l10n.formatValues([
 			{ id: "extra-columns-export-layout-none" },
 			{ id: "extra-columns-export-layout-choose" },
+			{ id: "extra-columns-export-layout-changed", args: { name: NAME_MARK } },
 		]);
-		layoutPlaceholders = { none, choose };
+		layoutLabels = { none, choose, changed };
 
 		// The chosen item, not the menu's value, which may not be updated yet.
 		// Choosing the layout that's already shown puts its choices back.
@@ -173,13 +178,15 @@ var ExtraColumnsExport = (function () {
 		byID("extra-columns-export-layout-delete").addEventListener("command", () => {
 			deleteLayout().catch(Zotero.logError);
 		});
+		// Selects the chosen format first, in case the menu hasn't yet.
+		const formatMenu = byID("extra-columns-export-format");
+		formatMenu.addEventListener("command", (event) => {
+			if (event.target.localName === "menuitem") {
+				formatMenu.selectedItem = event.target;
+			}
+			showLayout();
+		});
 
-		// Show the layout used last time, unless the choices have changed since.
-		const last = findLayout(settings.layout);
-		if (last && last.format === currentFormat().id
-			&& JSON.stringify(knownIDs(last.columnIDs)) === JSON.stringify(chosenIDs)) {
-			layoutName = last.name;
-		}
 		renderLayouts();
 	}
 
@@ -187,15 +194,23 @@ var ExtraColumnsExport = (function () {
 		return layouts.find((layout) => layout.name === name);
 	}
 
+	function matchesChoices(layout) {
+		return layout.format === currentFormat().id
+			&& JSON.stringify(knownIDs(layout.columnIDs)) === JSON.stringify(chosenIDs);
+	}
+
 	/** Rebuilds the menu. Only when the list changes, never while an item is being chosen. */
 	function renderLayouts() {
 		const menulist = byID("extra-columns-export-layout");
 		const popup = menulist.menupopup;
 		popup.replaceChildren();
-		const placeholder = document.createXULElement("menuitem");
-		placeholder.setAttribute("value", "");
-		placeholder.setAttribute("label", layouts.length ? layoutPlaceholders.choose : layoutPlaceholders.none);
-		popup.append(placeholder);
+		// Shows "Choose a saved layout" or "Table 1 (changed)" in the closed
+		// menu, but isn't in the list, since choosing it would do nothing.
+		const status = document.createXULElement("menuitem");
+		status.className = "layout-status";
+		status.setAttribute("value", "");
+		status.hidden = true;
+		popup.append(status);
 		for (const layout of layouts) {
 			const item = document.createXULElement("menuitem");
 			item.setAttribute("value", layout.name);
@@ -206,13 +221,37 @@ var ExtraColumnsExport = (function () {
 		showLayout();
 	}
 
-	/** Shows the layout last chosen or saved, if it still exists. */
+	/**
+	 * Shows the layout the current choices match, or the one they came from
+	 * marked as changed. Called after every change to the format or columns.
+	 */
 	function showLayout() {
-		if (!findLayout(layoutName)) {
-			layoutName = null;
+		const menulist = byID("extra-columns-export-layout");
+		if (!menulist.menupopup.firstChild) {
+			// Before the menu is built.
+			return;
 		}
-		byID("extra-columns-export-layout").value = layoutName ?? "";
-		byID("extra-columns-export-layout-delete").disabled = !layoutName;
+		let base = findLayout(layoutName);
+		if (!base || !matchesChoices(base)) {
+			base = layouts.find(matchesChoices) || base;
+		}
+		layoutName = base?.name ?? null;
+		byID("extra-columns-export-layout-delete").disabled = !base;
+
+		if (base && matchesChoices(base)) {
+			menulist.value = base.name;
+			return;
+		}
+		let label = layouts.length ? layoutLabels.choose : layoutLabels.none;
+		if (base) {
+			label = layoutLabels.changed.replace(NAME_MARK, base.name);
+		}
+		const status = menulist.menupopup.querySelector(".layout-status");
+		status.setAttribute("label", label);
+		menulist.selectedItem = status;
+		// The menu copies the label when an item is chosen, so also set it here
+		// for when the status item was already chosen.
+		menulist.setAttribute("label", label);
 	}
 
 	function applyLayout(name) {
@@ -226,7 +265,6 @@ var ExtraColumnsExport = (function () {
 		layoutName = name;
 		byID("extra-columns-export-format").value = api.ExportFormats.get(layout.format).id;
 		chosenIDs = knownIDs(layout.columnIDs);
-		showLayout();
 		renderColumns();
 	}
 
@@ -301,6 +339,7 @@ var ExtraColumnsExport = (function () {
 		}
 		dialog.getButton("accept").disabled = !chosenIDs.length || !!invalid;
 		dialog.getButton("extra1").disabled = !chosenIDs.length || !!invalid;
+		showLayout();
 
 		// Rows are rebuilt, so put focus back on the control that was used.
 		if (focus) {

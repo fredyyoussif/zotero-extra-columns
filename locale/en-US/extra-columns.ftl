@@ -80,6 +80,8 @@ extra-columns-export-window =
 extra-columns-export-layout-label = Layout:
 extra-columns-export-layout-none = No saved layouts
 extra-columns-export-layout-choose = Choose a saved layout
+# Shown when the format or columns have been changed since choosing or saving the layout.
+extra-columns-export-layout-changed = { $name } (changed)
 extra-columns-export-layout-save =
     .label = Save Layout...
     .tooltiptext = Save the format and the ticked columns, in order, to use again later
