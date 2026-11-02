@@ -229,6 +229,16 @@ check("combined column: unknown field",
 	combinedColumn("{year} {nope}").error, { code: "unknown-field", name: "nope" });
 check("combined column: syntax error", combinedColumn("{year").error, { code: "unclosed-brace" });
 
+// Export as Table: row numbers
+const rowNumberColumn = exportColumns.find((column) => column.id === "zotero:rowNumber");
+check("row number: offered and right-aligned", rowNumberColumn?.align, "end");
+check("row number: counts rows in export order",
+	api.ExportTable.rows([{ id: 7 }, { id: 3 }, { id: 9 }], [rowNumberColumn]), [["1"], ["2"], ["3"]]);
+check("row number: works in a combined column",
+	api.ExportTable.rows([{ id: 7 }, { id: 3 }],
+		[api.ExportTable.combinedColumn({ id: "n", label: "N", template: "{rowNumber}." }, exportSources)]),
+	[["1."], ["2."]]);
+
 // Export as Table: saved layouts
 check("layouts: cleaned",
 	api.ExportTable.cleanLayouts([

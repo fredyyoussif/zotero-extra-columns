@@ -17,8 +17,10 @@ var ExportTable = (function () {
 	// Zotero's item-list columns, with the string each one uses as its header.
 	// Columns about the library rather than the item (Notes, Feed, Added By and
 	// so on) are left out. Entries with an l10nID aren't item-list columns.
-	// Entries marked `latex` give LaTeX, which the LaTeX format doesn't escape.
+	// Entries marked `latex` give LaTeX, which the LaTeX format doesn't escape,
+	// and entries with `align: "end"` are right-aligned, like number columns.
 	const ZOTERO_COLUMNS = [
+		{ key: "rowNumber", l10nID: "extra-columns-export-col-row-number", align: "end" },
 		{ key: "title", string: "itemFields.title" },
 		{ key: "firstCreator", string: "zotero.items.creator_column" },
 		{ key: "creators", l10nID: "extra-columns-export-col-creators" },
@@ -89,7 +91,7 @@ var ExportTable = (function () {
 			id: "zotero:" + column.key,
 			label: column.l10nID ? null : zoteroLabel(column),
 			l10nID: column.l10nID,
-			align: "start",
+			align: column.align || "start",
 			latex: !!column.latex,
 			key: column.key,
 		}));
@@ -330,6 +332,8 @@ var ExportTable = (function () {
 	/** @param {object} exportState - Shared by all cells in one export. */
 	function zoteroValue(item, key, exportState) {
 		switch (key) {
+			case "rowNumber":
+				return String(exportState.rowNumber);
 			case "title":
 				return item.getDisplayTitle();
 			case "firstCreator":
@@ -397,8 +401,11 @@ var ExportTable = (function () {
 	 * @param {(text: string) => string} [escape] - The format's escape, used for combined columns.
 	 */
 	function rows(items, columns, escape = (text) => text) {
-		const exportState = { citationKeys: new Set(), keysByItem: new Map(), escape };
-		return items.map((item) => columns.map((column) => cellValue(item, column, exportState)));
+		const exportState = { citationKeys: new Set(), keysByItem: new Map(), escape, rowNumber: 0 };
+		return items.map((item, index) => {
+			exportState.rowNumber = index + 1;
+			return columns.map((column) => cellValue(item, column, exportState));
+		});
 	}
 
 	/** Saved combined columns, dropping malformed or duplicate entries. */
